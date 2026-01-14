@@ -1,0 +1,20 @@
+[[session]]
+  path = "$HOME/.dotfiles"
+  name = "dotfiles"
+  [[session.window]]
+    name = "$1"
+    cmd = "nvim ."
+
+[[session]]
+  path = "$HOME/src/(*)"
+  name = "src/$1"
+  [[session.window]]
+    name = "$1"
+    cmd = "nvim ."
+
+[[session]]
+  path = "$HOME/tmp/(*)"
+  name = "tmp/$1"
+  [[session.window]]
+    name = "$1"
+    cmd = "nvim ."
