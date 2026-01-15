@@ -1,111 +1,101 @@
 mod config;
-mod fzf;
+mod controls;
 mod state;
+mod tmux;
 
+use indexmap::IndexMap;
 use state::State;
 
 use config::Config;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     layout::{Offset, Rect, Size},
-    style::{Color, Stylize},
+    style::{Color, Style, Stylize},
     text::{Line, Span},
     widgets::{Paragraph, Widget},
 };
-use tmux_interface::{HasSession, StdIO};
-use tui_input::{Input, backend::crossterm::EventHandler};
 
-use crate::state::Matches;
+use crate::controls::EventHandler;
+use crate::state::Session;
 
 fn render_items(state: &State, area: Rect) -> Paragraph {
     let mut lines = Vec::new();
-    while lines.len() + state.matches.items.len() < area.height as usize {
+    let (selected, _) = state.fzf.selected();
+
+    while lines.len() + state.fzf.iter().len() < area.height as usize {
         lines.push(Line::default());
     }
-    for (i, item) in state.matches.items.iter().enumerate().rev() {
-        if i > state.matches.selected + 3 && i >= area.height as usize {
+    for (i, (name, item)) in state.fzf.iter().enumerate().rev() {
+        if i > selected + 3 && i >= area.height as usize {
             continue;
         }
 
         lines.push(Line::from_iter(
-            std::iter::once(Span::raw(
-                if tmux_interface::Tmux::with_command(
-                    HasSession::new().target_session(item.as_str()),
-                )
-                .stderr(Some(StdIO::Null))
-                .status()
-                .unwrap()
-                .success()
-                {
-                    " A "
+            std::iter::empty()
+                .chain(if i == selected {
+                    std::iter::once(Span::styled("▌", Style::new().magenta()))
                 } else {
-                    "   "
-                },
-            ))
-            .chain(item.chars().map(|(c, matched)| match matched {
-                false => Span::raw(c.to_string()),
-                true => Span::styled(c.to_string(), Color::LightGreen),
-            }))
-            .map(|span| {
-                if i == state.matches.selected {
-                    span.on_dark_gray()
+                    std::iter::once(Span::styled("▎", Style::new().dark_gray()))
+                })
+                .chain(std::iter::once(if item.attached {
+                    Span::styled("◆ ", Style::new().blue())
+                } else if item.opened {
+                    Span::styled("◇ ", Style::new().blue())
                 } else {
-                    span
-                }
-            }),
+                    Span::raw("  ")
+                }))
+                .chain(
+                    name.chars()
+                        .map(|(c, matched)| match matched {
+                            false => Span::raw(c.to_string()),
+                            true => Span::styled(c.to_string(), Color::LightGreen),
+                        })
+                        .map(|span| {
+                            if i == selected {
+                                span.bold().italic()
+                            } else {
+                                span
+                            }
+                        }),
+                ),
         ));
     }
 
     Paragraph::new(lines)
 }
 
-fn render_prompt(state: &State) -> impl Widget {
+fn render_prompt(state: &State, area: Rect) -> impl Widget {
     Line::from(vec![
-        Span::styled("> ", Color::LightBlue),
+        Span::styled("❯ ", Style::new().blue()),
         Span::raw(state.prompt.value()),
         Span::raw(" "),
-        Span::styled(" < ", Color::LightBlue),
+        Span::styled(" ❮ ", Style::new().blue().bold()),
         Span::styled(
-            format!(
-                "{}/{}",
-                state.matches.items.len(),
-                state.config.session.len()
+            format!("{}/{} ", state.fzf.iter().len(), state.config.session.len()),
+            Style::new().yellow().italic(),
+        ),
+        Span::styled(
+            String::from_iter(
+                std::iter::repeat('─').take(area.width as usize - 15 - state.prompt.value().len()),
             ),
-            Color::Yellow,
+            Style::new().dark_gray(),
         ),
     ])
 }
 
 fn update(state: &mut State, event: Event) {
+    state.fzf.handle_event(&event);
     state.prompt.handle_event(&event);
+    state.fzf.update(state.prompt.value());
+
     match event {
         Event::Key(event) => {
             if event.is_press() || event.is_repeat() {
                 match event.code {
                     KeyCode::Esc => state.running = false,
+                    KeyCode::Enter => state.running = false,
                     KeyCode::Char('c') if event.modifiers.contains(KeyModifiers::CONTROL) => {
                         state.running = false
-                    }
-                    KeyCode::Enter => state.running = false,
-                    KeyCode::Up => {
-                        if state.matches.selected + 1 < state.matches.items.len() {
-                            state.matches.selected += 1;
-                        }
-                    }
-                    KeyCode::Char('p') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        if state.matches.selected + 1 < state.matches.items.len() {
-                            state.matches.selected += 1
-                        }
-                    }
-                    KeyCode::Down => {
-                        if state.matches.selected > 0 {
-                            state.matches.selected -= 1;
-                        }
-                    }
-                    KeyCode::Char('n') if event.modifiers.contains(KeyModifiers::CONTROL) => {
-                        if state.matches.selected > 0 {
-                            state.matches.selected -= 1
-                        }
                     }
                     _ => (),
                 }
@@ -113,32 +103,66 @@ fn update(state: &mut State, event: Event) {
         }
         _ => (),
     }
-
-    state.update_matches();
-    if state.matches.selected >= state.matches.items.len() {
-        state.matches.selected = if state.matches.items.is_empty() {
-            0
-        } else {
-            state.matches.items.len() - 1
-        };
-    }
 }
 
 fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
-    let mut terminal = ratatui::init();
+
+    let config = Config::new().unwrap();
+    let mut sessions = IndexMap::new();
+    let (attached, opened) = tmux::list_sessions();
+
+    for s in attached.iter() {
+        if !config.session.contains_key(s) || sessions.contains_key(s) {
+            continue;
+        }
+        sessions.insert(
+            s.clone(),
+            Session {
+                path: config.session[s].path.clone(),
+                window: config.session[s].window.clone(),
+                opened: true,
+                attached: true,
+            },
+        );
+    }
+    for s in opened.iter() {
+        if !config.session.contains_key(s) || sessions.contains_key(s) {
+            continue;
+        }
+        sessions.insert(
+            s.clone(),
+            Session {
+                path: config.session[s].path.clone(),
+                window: config.session[s].window.clone(),
+                opened: true,
+                attached: false,
+            },
+        );
+    }
+    for s in config.session.keys() {
+        if sessions.contains_key(s) {
+            continue;
+        }
+        sessions.insert(
+            s.clone(),
+            Session {
+                path: config.session[s].path.clone(),
+                window: config.session[s].window.clone(),
+                opened: false,
+                attached: false,
+            },
+        );
+    }
 
     let mut state = State {
         config: Config::new().unwrap(),
-        prompt: Input::default(),
-        matches: Matches {
-            items: vec![],
-            selected: 0,
-        },
+        fzf: controls::Fzf::new(sessions),
+        prompt: controls::Input::default(),
         running: true,
     };
 
-    state.update_matches();
+    let mut terminal = ratatui::init();
     while state.running {
         terminal.draw(|frame| {
             let area = frame.area();
@@ -150,7 +174,13 @@ fn main() -> color_eyre::Result<()> {
                 }),
             );
             frame.render_widget(
-                render_prompt(&state),
+                render_prompt(
+                    &state,
+                    area.offset(Offset {
+                        x: 0,
+                        y: area.height as i32 - 1,
+                    }),
+                ),
                 area.offset(Offset {
                     x: 0,
                     y: area.height as i32 - 1,
@@ -166,5 +196,7 @@ fn main() -> color_eyre::Result<()> {
     }
 
     ratatui::restore();
+    let session = state.fzf.selected().1;
+    println!("{:?}", session);
     Ok(())
 }

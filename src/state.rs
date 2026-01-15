@@ -1,27 +1,20 @@
-use tui_input::Input;
-
 use crate::{
-    config::Config,
-    fzf::{self, FzfString},
+    config::{Config, Window},
+    controls::{Fzf, Input},
 };
 
-/// Items
-pub struct Matches {
-    pub items: Vec<FzfString>,
-    pub selected: usize,
+#[derive(Debug)]
+pub struct Session {
+    pub path: String,
+    pub window: Vec<Window>,
+    pub opened: bool,
+    pub attached: bool,
 }
 
 /// Full tiramisu state
 pub struct State {
     pub config: Config,
+    pub fzf: Fzf<Session>,
     pub prompt: Input,
-    pub matches: Matches,
     pub running: bool,
-}
-
-impl State {
-    pub fn update_matches(&mut self) {
-        self.matches.items =
-            fzf::fzf(self.config.session.keys().cloned(), self.prompt.value()).collect();
-    }
 }

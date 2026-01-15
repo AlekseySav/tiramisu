@@ -2,26 +2,25 @@ use std::{collections::HashMap, env};
 
 use anyhow::Result;
 use capturing_glob::glob;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 
 const CONFIG_PATH: &str = "examples/config.toml";
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct Config {
     pub session: HashMap<String, Session>,
 }
 
-#[derive(Deserialize, Validate, Debug)]
+#[derive(Deserialize, Serialize, Validate, Debug)]
 pub struct Session {
-    #[validate(pattern = "^[^.:]*$")]
     pub path: String,
-    #[validate(pattern = "^[^.:]*$")]
+    #[validate(pattern = "^[^.: ]*$")]
     pub name: String,
     pub window: Vec<Window>,
 }
 
-#[derive(Deserialize, Validate, Clone, Debug)]
+#[derive(Deserialize, Serialize, Validate, Clone, Debug)]
 pub struct Window {
     #[validate(pattern = "^[^.:]*$")]
     pub name: String,
