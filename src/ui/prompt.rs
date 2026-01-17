@@ -11,8 +11,7 @@ pub struct Prompt {
 }
 
 pub struct PromtWidget<'a> {
-    data: Vec<Span<'a>>,
-    len: usize,
+    ln: Line<'a>,
 }
 
 impl Prompt {
@@ -48,17 +47,20 @@ impl<'a> PromtWidget<'a> {
         data.push(Span::raw(hint).yellow());
 
         Self {
-            data: data,
-            len: hint.len() + prompt.inner.value().len() + 6,
+            ln: Line::from(data),
         }
     }
 }
 
 impl<'a> Widget for PromtWidget<'a> {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
-        Line::from(self.data).render(area, buf);
-        Span::raw("─".repeat(area.width as usize - self.len - 4))
-            .dark_gray()
-            .render(area.offset(Offset::new(self.len as i32 + 2, 0)), buf);
+        if area.width > self.ln.width() as u16 + 4 {
+            "─"
+                .repeat(area.width as usize - self.ln.width() - 4)
+                .to_span()
+                .dark_gray()
+                .render(area.offset(Offset::new(self.ln.width() as i32 + 2, 0)), buf);
+        }
+        self.ln.render(area, buf);
     }
 }

@@ -1,10 +1,10 @@
-use crossterm::event;
+use crossterm::event::{self, KeyCode};
 use ratatui::{
     DefaultTerminal,
     layout::{Constraint, Layout},
 };
 
-use crate::{logger::Logger, ui};
+use crate::{config::Config, logger::Logger, ui};
 
 pub struct Application {
     terminal: DefaultTerminal,
@@ -15,10 +15,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn new() -> std::io::Result<Self> {
+    pub fn new(config: &Config) -> std::io::Result<Self> {
         let mut app = Self {
             terminal: ratatui::init(),
-            logger: Logger::new(log::LevelFilter::Debug, "hello")?,
+            logger: Logger::new(&config.logger)?,
             list: ui::List::new(),
             prompt: ui::Prompt::new(),
             running: true,
@@ -50,24 +50,32 @@ impl Application {
 
                 frame.render_widget(ui::ListWidget::new(&self.list), list_area);
 
-                loop {
-                    match self.logger.message() {
-                        None => break,
-                        Some(msg) => frame.render_widget(ui::MessageWidget::new(&msg), area),
-                    }
-                }
+                let layout = Layout::horizontal([Constraint::Fill(1), Constraint::Percentage(30)]);
+                let [_, area] = layout.areas(area);
+                frame.render_widget(ui::MessageWidget::new(self.logger.messages().iter()), area);
             })
-            // TODO properly return error
             .unwrap();
     }
 
     pub fn update(&mut self) {
-        let e = event::read().unwrap();
+        while event::poll(std::time::Duration::from_millis(100)).unwrap() {
+            let e = event::read().unwrap();
+            log::trace!("Received event {:?}", e);
 
-        if self.prompt.handle_event(&e) {
-            self.list.prompt(self.prompt.value());
-        } else if !self.list.handle_event(&e) {
-            self.running = false;
+            if self.prompt.handle_event(&e) {
+                self.list.prompt(self.prompt.value());
+                return;
+            }
+            if self.list.handle_event(&e) {
+                return;
+            }
+            match e.as_key_press_event() {
+                Some(e) => match e.code {
+                    KeyCode::Esc => self.running = false,
+                    _ => (),
+                },
+                _ => (),
+            }
         }
     }
 }

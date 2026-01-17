@@ -1,13 +1,12 @@
 use std::{
     collections::VecDeque,
     fs::OpenOptions,
-    path::Path,
     sync::{Arc, Mutex},
 };
 
 use fern::Dispatch;
 
-use crate::ui;
+use crate::{config, ui};
 
 /// Logger
 /// Logs are stored in file and localy, so that they can appear in popups
@@ -17,12 +16,13 @@ pub struct Logger {
 
 impl Logger {
     /// Creates new logger
-    pub fn new<P: AsRef<Path>>(level: log::LevelFilter, logfile: P) -> std::io::Result<Self> {
+    pub fn new(config: &config::Logger) -> std::io::Result<Self> {
         let logger = Self {
             logs: Arc::new(Mutex::new(VecDeque::new())),
         };
         let sender = logger.logs.clone();
 
+        std::fs::create_dir_all(config.log_path.parent().unwrap())?;
         Dispatch::new()
             // log to file
             .chain({
@@ -35,24 +35,26 @@ impl Logger {
                             message
                         ))
                     })
-                    .level(level)
+                    .level(config.level)
                     .chain(
                         OpenOptions::new()
                             .write(true)
                             .create(true)
                             .append(true)
-                            .open(logfile)?,
+                            .open(&config.log_path)?,
                     )
             })
             // log to local queue
             .chain({
                 Dispatch::new()
+                    .level(config.level)
                     .format(|out, message, _| out.finish(format_args!("{}", message)))
                     .chain(fern::Output::call(move |record| {
-                        sender
-                            .lock()
-                            .unwrap()
-                            .push_back(ui::Message::new(record.level(), record.args().to_string()));
+                        sender.lock().unwrap().push_back(ui::Message::new(
+                            record.level(),
+                            record.args().to_string(),
+                            chrono::Local::now(),
+                        ));
                     }))
             })
             .apply()
@@ -61,7 +63,16 @@ impl Logger {
         Ok(logger)
     }
 
-    pub fn message(&self) -> Option<ui::Message> {
-        self.logs.lock().unwrap().pop_front()
+    /// List all messages
+    pub fn messages(&mut self) -> Vec<ui::Message> {
+        let dur = chrono::Duration::milliseconds(5000);
+
+        let now = chrono::Local::now();
+        let mut logs = self.logs.lock().unwrap();
+        while logs.front().is_some_and(|m| now - m.time() >= dur) {
+            logs.pop_front();
+        }
+
+        logs.iter().cloned().collect()
     }
 }
