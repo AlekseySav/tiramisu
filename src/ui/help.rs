@@ -1,6 +1,5 @@
 use std::borrow::Cow;
 
-use color_eyre::owo_colors::OwoColorize;
 use ratatui::{
     layout::{Constraint, Layout, Margin, Offset, Rect},
     style::{Color, Style},
@@ -26,7 +25,7 @@ impl<'a> Help<'a> {
     fn new<S: Into<Cow<'a, str>>>(key: S, help: S) -> Self {
         Self {
             key: Span::styled(key, Color::Red),
-            help: Span::raw(help),
+            help: Span::styled(help, Color::Gray),
         }
     }
 }
@@ -37,8 +36,16 @@ impl<'a> HelpWidget<'a> {
         v.push(Help::new("ctrl+?/ctrl+7", "toggle help"));
         v.push(Help::new("enter", "switch to selected session"));
         v.push(Help::new("ctrl+x", "kill selected session"));
-        v.push(Help::new("ctrl+p/up", "move up"));
-        v.push(Help::new("ctrl+n/down", "move down"));
+        v.push(Help::new("ctrl+p/up ctrl+n/down", "move selection"));
+        v.push(Help::new("", ""));
+        v.push(Help::new("ctrl+h/backspace", "backspace"));
+        v.push(Help::new("ctrl+d/delete", "delete"));
+        v.push(Help::new("ctrl+b/left, right", "move prompt cursor"));
+        v.push(Help::new("ctrl+a", "move prompt cursor to beginning"));
+        v.push(Help::new("ctrl+e", "move prompt cursor to end"));
+        v.push(Help::new("ctrl+w", "delete from cursor to beginning"));
+        v.push(Help::new("ctrl+k", "delete from cursor to end"));
+        v.push(Help::new("ctrl+shift+v/cmd+v", "paste"));
         Self {
             key_width: v.iter().map(|s| s.key.width()).max().unwrap() as u16 + 2,
             width: v.iter().map(|s| s.help.width()).max().unwrap() as u16,

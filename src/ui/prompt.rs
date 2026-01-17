@@ -4,7 +4,7 @@ use ratatui::{
     text::{Line, Span, ToSpan},
     widgets::Widget,
 };
-use tui_input::{Input, backend::crossterm::EventHandler};
+use tui_input::{Input, StateChanged, backend::crossterm::EventHandler};
 
 pub struct Prompt {
     inner: Input,
@@ -29,10 +29,11 @@ impl Prompt {
         self.inner.value()
     }
 
-    pub fn handle_event(&mut self, event: &crossterm::event::Event) -> bool {
-        self.inner
-            .handle_event(event)
-            .map_or(false, |r| r.value || r.cursor)
+    pub fn handle_event(&mut self, event: &crossterm::event::Event) -> StateChanged {
+        self.inner.handle_event(event).unwrap_or(StateChanged {
+            value: false,
+            cursor: false,
+        })
     }
 }
 

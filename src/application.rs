@@ -88,12 +88,10 @@ impl Application {
     }
 
     pub fn update(&mut self) {
-        self.refresh();
-
-        while event::poll(std::time::Duration::from_millis(100)).unwrap() {
+        while event::poll(std::time::Duration::from_millis(10)).unwrap() {
             let e = event::read().unwrap();
 
-            if self.prompt.handle_event(&e) {
+            if self.prompt.handle_event(&e).value {
                 self.list.prompt(self.prompt.value());
                 return;
             }
@@ -123,6 +121,7 @@ impl Application {
                 _ => (),
             }
         }
+        self.refresh();
     }
 
     pub fn selected(&mut self) -> Option<(ui::MatchedString, ui::Session)> {
@@ -153,5 +152,6 @@ impl Application {
             self.list.insert(session, ui::State::None);
         }
         self.list.set_selected(selected);
+        self.list.prompt(self.prompt.value());
     }
 }
