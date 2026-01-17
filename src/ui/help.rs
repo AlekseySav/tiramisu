@@ -34,6 +34,7 @@ impl<'a> HelpWidget<'a> {
     pub fn new() -> Self {
         let mut v: Vec<Help<'a>> = Vec::new();
         v.push(Help::new("ctrl+?/ctrl+7", "toggle help"));
+        v.push(Help::new("ctrl+c/esc", "quit"));
         v.push(Help::new("enter", "switch to selected session"));
         v.push(Help::new("ctrl+x", "kill selected session"));
         v.push(Help::new("ctrl+p/up ctrl+n/down", "move selection"));
@@ -52,7 +53,7 @@ impl<'a> HelpWidget<'a> {
             height: v.len() as u16,
             help: v,
             background: Block::bordered()
-                .style(Style::default().bg(Color::Black))
+                .style(Style::default().bg(Color::Black).fg(Color::Black))
                 .border_set(border::ROUNDED)
                 .border_style(Color::DarkGray),
         }
