@@ -229,38 +229,5 @@ impl<'a> Widget for SessionListWidget<'a> {
             .rev()
             .finish()
             .render(area, buf);
-
-        // while lines.len() + state.fzf.iter().len() < area.height as usize {
-        //     lines.push(Line::default());
-        // }
-        // for (i, (name, item)) in state.fzf.iter().enumerate().rev() {
-        //     if i > self.selected + 3 && i >= area.height as usize {
-        //         continue;
-        //     }
-
-        //     lines.push(Line::from_iter(
-        //             .chain(std::iter::once(if item.attached {
-        //                 Span::styled("◆ ", Style::new().blue())
-        //             } else if item.opened {
-        //                 Span::styled("◇ ", Style::new().blue())
-        //             } else {
-        //                 Span::raw("  ")
-        //             }))
-        //             .chain(
-        //                 name.chars()
-        //                     .map(|(c, matched)| match matched {
-        //                         false => Span::raw(c.to_string()),
-        //                         true => Span::styled(c.to_string(), Color::LightGreen),
-        //                     })
-        //                     .map(|span| {
-        //                         if i == selected {
-        //                             span.bold().italic()
-        //                         } else {
-        //                             span
-        //                         }
-        //                     }),
-        //             ),
-        //     ));
-        // }
     }
 }
