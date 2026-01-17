@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Layout, Margin},
 };
 
 use crate::{config, logger::Logger, tmux, ui};
@@ -14,6 +14,7 @@ pub struct Application {
     list: ui::SessionList,
     prompt: ui::Prompt,
     selected: Option<(ui::MatchedString, ui::Session)>,
+    help: bool,
     running: bool,
 }
 
@@ -25,10 +26,10 @@ impl Application {
             list: ui::SessionList::new(),
             prompt: ui::Prompt::new(),
             selected: None,
+            help: false,
             running: true,
         };
         app.add_sessions(&config.session);
-        app.terminal.show_cursor().unwrap();
 
         Ok(app)
     }
@@ -54,10 +55,23 @@ impl Application {
                 frame.render_widget(ui::SessionListWidget::new(&self.list), list_area);
 
                 let layout = Layout::horizontal([Constraint::Fill(1), Constraint::Percentage(30)]);
-                let [_, area] = layout.areas(area);
-                frame.render_widget(ui::MessageWidget::new(self.logger.messages().iter()), area);
+                let [_, msg_area] = layout.areas(area);
+                frame.render_widget(
+                    ui::MessageWidget::new(self.logger.messages().iter()),
+                    msg_area,
+                );
+
+                if self.help {
+                    frame.render_widget(ui::HelpWidget::new(), area);
+                }
             })
             .unwrap();
+
+        if self.help {
+            self.terminal.hide_cursor().unwrap();
+        } else {
+            self.terminal.show_cursor().unwrap();
+        }
     }
 
     pub fn update(&mut self) {
@@ -77,6 +91,9 @@ impl Application {
                     KeyCode::Esc => self.running = false,
                     KeyCode::Char('c') if e.modifiers.contains(KeyModifiers::CONTROL) => {
                         self.running = false
+                    }
+                    KeyCode::Char('7') if e.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.help = !self.help
                     }
                     KeyCode::Enter => {
                         self.selected = self.list.selected().map(|(n, s)| (n.clone(), s.clone()))

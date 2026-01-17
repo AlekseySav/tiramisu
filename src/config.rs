@@ -30,7 +30,7 @@ pub struct Logger {
 
     /// How long to keep messages popup (in seconds)
     #[serde_as(as = "DurationSeconds<f64>")]
-    #[serde_inline_default(chrono::Duration::milliseconds(5))]
+    #[serde_inline_default(chrono::Duration::milliseconds(5000))]
     pub message_ttl: chrono::Duration,
 
     /// Log path
