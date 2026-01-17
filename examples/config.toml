@@ -2,8 +2,10 @@
   root = "$HOME/.dotfiles"
   name = "dotfiles"
   [[session.window]]
-    name = "$1"
+    name = "dotfiles"
     command = "nvim ."
+  [[session.window]]
+    name = "shell"
 
 [[session]]
   root = "$HOME/src/(*)"
@@ -11,6 +13,8 @@
   [[session.window]]
     name = "$1"
     command = "nvim ."
+  [[session.window]]
+    name = "shell"
 
 [[session]]
   root = "$HOME/tmp/(*)"
@@ -18,6 +22,8 @@
   [[session.window]]
     name = "$1"
     command = "nvim ."
+  [[session.window]]
+    name = "shell"
 
 [logger]
 level = "trace"

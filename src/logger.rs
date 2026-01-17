@@ -11,7 +11,8 @@ use crate::{config, ui};
 /// Logger
 /// Logs are stored in file and localy, so that they can appear in popups
 pub struct Logger {
-    pub logs: Arc<Mutex<VecDeque<ui::Message>>>,
+    logs: Arc<Mutex<VecDeque<ui::Message>>>,
+    ttl: chrono::Duration,
 }
 
 impl Logger {
@@ -19,6 +20,7 @@ impl Logger {
     pub fn new(config: &config::Logger) -> std::io::Result<Self> {
         let logger = Self {
             logs: Arc::new(Mutex::new(VecDeque::new())),
+            ttl: config.message_ttl,
         };
         let sender = logger.logs.clone();
 
@@ -63,13 +65,11 @@ impl Logger {
         Ok(logger)
     }
 
-    /// List all messages
+    /// List all messages, that hasn't expired yet
     pub fn messages(&mut self) -> Vec<ui::Message> {
-        let dur = chrono::Duration::milliseconds(5000);
-
         let now = chrono::Local::now();
         let mut logs = self.logs.lock().unwrap();
-        while logs.front().is_some_and(|m| now - m.time() >= dur) {
+        while logs.front().is_some_and(|m| now - m.time() >= self.ttl) {
             logs.pop_front();
         }
 

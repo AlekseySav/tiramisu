@@ -6,31 +6,61 @@ use ratatui::{
     text::{Span, ToSpan},
     widgets::Widget,
 };
-use std::collections::HashSet;
+use std::{collections::HashSet, path::PathBuf};
 
-use crate::ui::ParagraphBuilder;
+use crate::{config, ui::ParagraphBuilder};
+
+/// Session state
+#[derive(Debug, Clone, PartialEq)]
+pub enum State {
+    None,
+    Created,
+    Attached,
+}
+
+/// Session
+#[derive(Debug, Clone)]
+pub struct Session {
+    pub state: State,
+    pub root: PathBuf,
+    pub windows: Vec<config::Window>,
+}
 
 /// String whith matched indices
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MatchedString {
     s: Utf32String,
     indices: HashSet<u32>,
 }
 
 /// Selectable list
-pub struct List<T> {
-    items: IndexMap<Utf32String, T>,
+pub struct SessionList {
+    items: IndexMap<Utf32String, Session>,
     matches: Vec<MatchedString>,
     prompt: Utf32String,
     selected: usize,
 }
 
-pub struct ListWidget<'a> {
-    matches: &'a Vec<MatchedString>,
-    selected: usize,
+pub struct SessionListWidget<'a> {
+    inner: &'a SessionList,
+}
+
+impl Session {
+    pub fn new(config: &config::Session, state: State) -> Self {
+        Self {
+            state,
+            root: config.root.clone(),
+            windows: config.window.clone(),
+        }
+    }
 }
 
 impl MatchedString {
+    /// Returns raw string
+    pub fn to_string(&self) -> String {
+        self.s.to_string()
+    }
+
     /// Returns iterator over characters and indicator whether each of them was matched or not
     pub fn chars(&self) -> impl Iterator<Item = (char, bool)> {
         self.s
@@ -47,7 +77,7 @@ impl Into<String> for MatchedString {
     }
 }
 
-impl<T> List<T> {
+impl SessionList {
     /// Creates empty list
     pub fn new() -> Self {
         Self {
@@ -59,10 +89,10 @@ impl<T> List<T> {
     }
 
     /// Inserts new item, order preserved, if key already exists, no insertion occurs
-    pub fn insert<S: AsRef<str>>(&mut self, name: S, value: T) {
-        let s: Utf32String = name.as_ref().into();
+    pub fn insert(&mut self, session: &config::Session, state: State) {
+        let s: Utf32String = session.name.as_str().into();
         if !self.items.contains_key(&s) {
-            self.items.insert(s, value);
+            self.items.insert(s, Session::new(session, state));
         }
         self.update();
     }
@@ -79,14 +109,16 @@ impl<T> List<T> {
     }
 
     /// Returns iterator over all matched items
-    pub fn matched_items(&self) -> impl Iterator<Item = (&MatchedString, &T)> + ExactSizeIterator {
+    pub fn matched_items(
+        &self,
+    ) -> impl Iterator<Item = (&MatchedString, &Session)> + ExactSizeIterator {
         self.matches
             .iter()
             .map(|s| (s, self.items.get(&s.s).unwrap()))
     }
 
     /// Returns currently selected item
-    pub fn selected(&self) -> Option<(&MatchedString, &T)> {
+    pub fn selected(&self) -> Option<(&MatchedString, &Session)> {
         self.matches
             .get(self.selected)
             .map(|s| (s, self.items.get(&s.s).unwrap()))
@@ -147,24 +179,26 @@ impl<T> List<T> {
     }
 }
 
-impl<'a> ListWidget<'a> {
-    pub fn new<T>(list: &'a List<T>) -> Self {
-        Self {
-            matches: &list.matches,
-            selected: list.selected,
-        }
+impl<'a> SessionListWidget<'a> {
+    pub fn new(list: &'a SessionList) -> Self {
+        Self { inner: list }
     }
 }
 
-impl<'a> Widget for ListWidget<'a> {
+impl<'a> Widget for SessionListWidget<'a> {
     fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer) {
         let mut b = ParagraphBuilder::new();
 
-        for (i, line) in self.matches.iter().enumerate() {
-            if i == self.selected {
+        for (i, line) in self.inner.matches.iter().enumerate() {
+            if i == self.inner.selected {
                 b.p("▌".to_span().magenta());
             } else {
                 b.p("▎".to_span().dark_gray());
+            }
+            match self.inner.items[&line.s].state {
+                State::None => b.p("  ".to_span()),
+                State::Created => b.p("◇ ".to_span().blue()),
+                State::Attached => b.p("◆ ".to_span().blue()),
             }
             b.p("  ".to_span());
             for (c, matched) in line.chars() {
@@ -177,10 +211,13 @@ impl<'a> Widget for ListWidget<'a> {
             b.br();
         }
 
-        b.line_mut(self.selected)
+        b.line_mut(self.inner.selected)
             .map(|line| *line = line.clone().bold().italic());
 
-        b.scroll(self.selected + 3).rev().finish().render(area, buf);
+        b.scroll(self.inner.selected + 3)
+            .rev()
+            .finish()
+            .render(area, buf);
 
         // while lines.len() + state.fzf.iter().len() < area.height as usize {
         //     lines.push(Line::default());

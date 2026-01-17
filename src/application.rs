@@ -1,30 +1,33 @@
-use crossterm::event::{self, KeyCode};
+use std::collections::HashMap;
+
+use crossterm::event::{self, KeyCode, KeyModifiers};
 use ratatui::{
     DefaultTerminal,
     layout::{Constraint, Layout},
 };
 
-use crate::{config::Config, logger::Logger, ui};
+use crate::{config, logger::Logger, tmux, ui};
 
 pub struct Application {
     terminal: DefaultTerminal,
     logger: Logger,
-    list: ui::List<u8>,
+    list: ui::SessionList,
     prompt: ui::Prompt,
+    selected: Option<(ui::MatchedString, ui::Session)>,
     running: bool,
 }
 
 impl Application {
-    pub fn new(config: &Config) -> std::io::Result<Self> {
+    pub fn new(config: &config::Config) -> std::io::Result<Self> {
         let mut app = Self {
             terminal: ratatui::init(),
             logger: Logger::new(&config.logger)?,
-            list: ui::List::new(),
+            list: ui::SessionList::new(),
             prompt: ui::Prompt::new(),
+            selected: None,
             running: true,
         };
-        app.list.insert("hello", 1);
-        app.list.insert("hello you", 1);
+        app.add_sessions(&config.session);
         app.terminal.show_cursor().unwrap();
 
         Ok(app)
@@ -48,7 +51,7 @@ impl Application {
                     area.y + area.height,
                 ));
 
-                frame.render_widget(ui::ListWidget::new(&self.list), list_area);
+                frame.render_widget(ui::SessionListWidget::new(&self.list), list_area);
 
                 let layout = Layout::horizontal([Constraint::Fill(1), Constraint::Percentage(30)]);
                 let [_, area] = layout.areas(area);
@@ -72,16 +75,44 @@ impl Application {
             match e.as_key_press_event() {
                 Some(e) => match e.code {
                     KeyCode::Esc => self.running = false,
+                    KeyCode::Char('c') if e.modifiers.contains(KeyModifiers::CONTROL) => {
+                        self.running = false
+                    }
+                    KeyCode::Enter => {
+                        self.selected = self.list.selected().map(|(n, s)| (n.clone(), s.clone()))
+                    }
                     _ => (),
                 },
                 _ => (),
             }
         }
     }
-}
 
-impl Drop for Application {
-    fn drop(&mut self) {
+    pub fn selected(&self) -> &Option<(ui::MatchedString, ui::Session)> {
+        &self.selected
+    }
+
+    pub fn finish(&self) {
         ratatui::restore();
+    }
+
+    fn add_sessions(&mut self, sessions: &Vec<config::Session>) {
+        let (attached, opened) = tmux::list_sessions();
+        let map: HashMap<String, &config::Session> =
+            HashMap::from_iter(sessions.iter().map(|s| (s.name.clone(), s)));
+
+        for name in attached {
+            map.get(&name)
+                .inspect(|s| self.list.insert(s, ui::State::Attached));
+        }
+
+        for name in opened {
+            map.get(&name)
+                .inspect(|s| self.list.insert(s, ui::State::Created));
+        }
+
+        for session in sessions.iter() {
+            self.list.insert(session, ui::State::None);
+        }
     }
 }
