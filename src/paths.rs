@@ -17,5 +17,5 @@ pub fn logs() -> PathBuf {
     dirs::cache_dir()
         .unwrap_or(PathBuf::from("."))
         .join("tiramisu")
-        .join("config.toml")
+        .join("tiramisu.log")
 }

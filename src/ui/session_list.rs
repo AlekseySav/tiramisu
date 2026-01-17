@@ -124,6 +124,19 @@ impl SessionList {
             .map(|s| (s, self.items.get(&s.s).unwrap()))
     }
 
+    /// Get selected index
+    pub fn get_selected_index(&mut self) -> usize {
+        self.selected
+    }
+
+    /// Set selected index
+    pub fn set_selected(&mut self, selected: usize) {
+        self.selected = selected;
+        if self.selected >= self.matches.len() && self.matches.len() > 0 {
+            self.selected = self.matches.len() - 1;
+        }
+    }
+
     fn update(&mut self) {
         let mut res = Vec::new();
 
@@ -146,9 +159,7 @@ impl SessionList {
             })
             .collect();
 
-        if self.selected >= self.matches.len() && self.matches.len() > 0 {
-            self.selected = self.matches.len() - 1;
-        }
+        self.set_selected(self.selected);
     }
 
     pub fn handle_event(&mut self, evt: &Event) -> bool {

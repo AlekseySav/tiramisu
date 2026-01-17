@@ -4,8 +4,10 @@
   [[session.window]]
     name = "dotfiles"
     command = "nvim ."
+    kill = [":wq", "Enter"]
   [[session.window]]
     name = "shell"
+    kill = ["C-d"]
 
 [[session]]
   root = "$HOME/src/(*)"
@@ -13,8 +15,10 @@
   [[session.window]]
     name = "$1"
     command = "nvim ."
+    kill = [":wq", "Enter"]
   [[session.window]]
     name = "shell"
+    kill = ["C-d"]
 
 [[session]]
   root = "$HOME/tmp/(*)"
@@ -22,8 +26,10 @@
   [[session.window]]
     name = "$1"
     command = "nvim ."
+    kill = [":wq", "Enter"]
   [[session.window]]
     name = "shell"
+    kill = ["C-d"]
 
 [logger]
 level = "trace"

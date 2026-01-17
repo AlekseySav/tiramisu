@@ -60,36 +60,6 @@ impl Tmux {
     }
 }
 
-fn create_session(name: &String, session: &Session) -> bool {
-    let mut tmux = Tmux::new();
-    let w = &session.windows[0];
-    let root = session.root.to_str().unwrap();
-    tmux.command([
-        "new-session",
-        "-d",
-        "-s",
-        name,
-        "-c",
-        root,
-        "-n",
-        &w.name,
-        &w.command,
-    ]);
-    for w in session.windows.iter().skip(1) {
-        tmux.command([
-            "new-window",
-            "-t",
-            name,
-            "-c",
-            root,
-            "-n",
-            &w.name,
-            &w.command,
-        ]);
-    }
-    tmux.run().is_some()
-}
-
 pub fn open(name: &String, session: &Session) -> bool {
     if session.state == State::None {
         if !create_session(name, session) {
@@ -105,6 +75,34 @@ pub fn open(name: &String, session: &Session) -> bool {
     }
 
     tmux.run().is_some()
+}
+
+pub fn kill(name: &String, session: &Session) {
+    let mut tmux = Tmux::new();
+    match session.state {
+        State::None => {
+            log::warn!("Unable to kill {} because it is not created", name);
+            return;
+        }
+        State::Attached => {
+            log::warn!("Unable to kill {} because it is attached", name);
+            return;
+        }
+        State::Created => (),
+    }
+
+    if session.state != State::Created {}
+    for (i, window) in session.windows.iter().enumerate() {
+        let target = format!("{}:{}", name, i);
+        if window.kill.is_empty() {
+            tmux.command(["kill-window", "-t", &target]);
+            continue;
+        }
+        let mut command = Vec::from(["send-keys", "-t", &target]);
+        command.extend(window.kill.iter().map(|s| s.as_str()));
+        tmux.command(command);
+    }
+    tmux.run();
 }
 
 pub fn list_sessions() -> (Vec<String>, Vec<String>) {
@@ -125,4 +123,34 @@ pub fn list_sessions() -> (Vec<String>, Vec<String>) {
     }
 
     r
+}
+
+fn create_session(name: &String, session: &Session) -> bool {
+    let mut tmux = Tmux::new();
+    let w = &session.windows[0];
+    let root = session.root.to_str().unwrap();
+    tmux.command([
+        "new-session",
+        "-d",
+        "-s",
+        name,
+        "-c",
+        root,
+        "-n",
+        &w.name,
+        &w.command,
+    ]);
+    for (i, w) in session.windows.iter().enumerate().skip(1) {
+        tmux.command([
+            "new-window",
+            "-t",
+            &format!("{}:{}", name, i),
+            "-c",
+            root,
+            "-n",
+            &w.name,
+            &w.command,
+        ]);
+    }
+    tmux.run().is_some()
 }

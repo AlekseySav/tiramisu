@@ -20,16 +20,25 @@ struct Args {
     /// Keep running after session selection
     #[arg(long)]
     keep: bool,
+
+    /// Print logs and quit
+    #[arg(long)]
+    logs: bool,
 }
 
 pub fn main() {
     let args = Args::parse();
     let config = Config::new(args.config.unwrap_or(paths::config())).unwrap();
-    let mut app = Application::new(&config).unwrap();
 
-    if config.show_help {
-        log::info!("ctrl+? show help");
+    if args.logs {
+        print!(
+            "{}",
+            std::fs::read_to_string(config.logger.log_path).unwrap()
+        );
+        return;
     }
+
+    let mut app = Application::new(config).unwrap();
 
     while app.running() {
         app.render();
@@ -37,7 +46,7 @@ pub fn main() {
 
         match app.selected() {
             Some((name, session)) => {
-                if tmux::open(&name.to_string(), session) && !args.keep {
+                if tmux::open(&name.to_string(), &session) && !args.keep {
                     log::trace!("Exiting...");
                     break;
                 }

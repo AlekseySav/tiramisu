@@ -1,10 +1,10 @@
 use crate::paths;
+
 use serde::Deserialize;
 use serde_inline_default::serde_inline_default;
 use serde_valid::Validate;
 use serde_with::{DisplayFromStr, DurationSeconds, serde_as};
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[serde_inline_default]
 #[derive(Debug, Deserialize, Validate)]
@@ -42,8 +42,10 @@ pub struct Logger {
 pub struct Session {
     /// Session root dir, may be glob
     pub root: PathBuf,
+
     /// Session name
     pub name: String,
+
     /// List of windows
     #[validate(min_items = 1)]
     pub window: Vec<Window>,
@@ -53,9 +55,14 @@ pub struct Session {
 pub struct Window {
     /// Window name
     pub name: String,
+
     /// Window startup command
     #[serde(default)]
     pub command: String,
+
+    /// Command to send to safely kill window
+    #[serde(default)]
+    pub kill: Vec<String>,
 }
 
 impl Config {
@@ -82,6 +89,7 @@ impl Config {
                             .map(|w| Window {
                                 name: replace_env(&w.name, Some(&e)),
                                 command: replace_env(&w.command, Some(&e)),
+                                kill: w.kill.clone(),
                             })
                             .collect(),
                     }),
