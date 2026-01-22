@@ -1,95 +1,20 @@
-name: Build & Release
+name: Rust
 
 on:
   push:
-    tags:
-      - 'v*.*.*'  # Trigger on version tags like v1.2.3
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            archive_name: yourapp-linux-x86_64
-          - os: ubuntu-22.04
-            target: aarch64-unknown-linux-gnu
-            archive_name: yourapp-linux-aarch64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            archive_name: yourapp-macos-x86_64
-          - os: macos-14
-            target: aarch64-apple-darwin
-            archive_name: yourapp-macos-aarch64
-          - os: windows-2022
-            target: x86_64-pc-windows-msvc
-            archive_name: yourapp-windows-x86_64
-          - os: windows-2022
-            target: aarch64-pc-windows-msvc
-            archive_name: yourapp-windows-aarch64
-
-    runs-on: ${{ matrix.os }}
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Build (Linux/macOS)
-        if: matrix.os != 'windows-2022'
-        run: |
-          cargo build --release --target=${{ matrix.target }}
-          mkdir -p dist/${{ matrix.archive_name }}
-          cp target/${{ matrix.target }}/release/yourapp dist/${{ matrix.archive_name }}/
-
-      - name: Build (Windows)
-        if: matrix.os == 'windows-2022'
-        shell: bash
-        run: |
-          cargo build --release --target=${{ matrix.target }}
-          mkdir -p dist/${{ matrix.archive_name }}
-          cp target/${{ matrix.target }}/release/yourapp.exe dist/${{ matrix.archive_name }}/
-
-      - name: Compress artifact
-        run: |
-          cd dist
-          if [[ "${{ matrix.os }}" == *"windows"* ]]; then
-            7z a ${{ matrix.archive_name }}.zip ${{ matrix.archive_name }}
-          else
-            tar -czf ${{ matrix.archive_name }}.tar.gz ${{ matrix.archive_name }}
-          fi
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.archive_name }}
-          path: dist/${{ matrix.archive_name }}.*
-
-  release:
-    needs: build
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-
-      - name: Flatten directory structure
-        run: |
-          mkdir -p release-assets
-          find dist -name "*.tar.gz" -exec cp {} release-assets/ \;
-          find dist -name "*.zip" -exec cp {} release-assets/ \;
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: release-assets/*
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
