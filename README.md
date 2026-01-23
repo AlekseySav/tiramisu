@@ -13,7 +13,11 @@ $ brew install alekseysav/tiramisu/tiramisu
 
 ## Configuration
 
-Basic config
+By default, configuration is stored at
+- Windows: %APPDATA%\tiramisu\config.toml
+- Unix: $XDG_CONFIG_HOME/tiramisu/config.toml or ~/.config/tiramisu/config.toml
+
+Example of `config.toml`:
 
 ```toml
 [[session]]
@@ -24,4 +28,15 @@ Basic config
     command = "nvim ."
   [[session.window]]
     name = "shell"
+
+[logger]
+  level = "info"
+```
+
+### Integration with tmux
+
+`tiramisu` may run within `tmux-popup`:
+
+```
+bind-key j display-popup -S "fg=default,bg=default" -w 70% -h 70% -E "tiramisu"
 ```

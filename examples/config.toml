@@ -32,4 +32,4 @@
     kill = ["C-d"]
 
 [logger]
-level = "trace"
+  level = "info"
