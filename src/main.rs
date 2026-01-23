@@ -17,10 +17,6 @@ struct Args {
     #[arg(long)]
     config: Option<PathBuf>,
 
-    /// Keep running after session selection
-    #[arg(long)]
-    keep: bool,
-
     /// Print logs and quit
     #[arg(long)]
     logs: bool,
@@ -46,7 +42,7 @@ pub fn main() {
 
         match app.selected() {
             Some((name, session)) => {
-                if tmux::open(&name.to_string(), &session) && !args.keep {
+                if tmux::open(&name.to_string(), &session) {
                     log::trace!("Exiting...");
                     break;
                 }

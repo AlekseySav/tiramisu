@@ -1,6 +1,5 @@
-use std::process::Command;
-
 use crate::ui::{Session, State};
+use std::process::{Command, Stdio};
 
 pub struct Tmux {
     args: Vec<String>,
@@ -21,9 +20,16 @@ impl Tmux {
         self.args.push(";".to_string());
     }
 
-    pub fn run(self) -> Option<String> {
+    pub fn run(self, inherit: bool) -> Option<String> {
         log::trace!("tmux {:?}", self.args);
-        match Command::new("tmux").args(self.args).output() {
+        let mut command = Command::new("tmux");
+        if inherit {
+            command
+                .stdin(Stdio::inherit())
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit());
+        }
+        match command.args(self.args).output() {
             Ok(r) => {
                 let stderr = Self::to_string(r.stderr);
                 if !stderr.is_empty() {
@@ -70,11 +76,11 @@ pub fn open(name: &String, session: &Session) -> bool {
     let mut tmux = Tmux::new();
     if Tmux::attached() {
         tmux.command(["switch-client", "-t", name]);
+        tmux.run(false).is_some()
     } else {
         tmux.command(["attach", "-t", name]);
+        tmux.run(true).is_some()
     }
-
-    tmux.run().is_some()
 }
 
 pub fn kill(name: &String, session: &Session) {
@@ -102,13 +108,17 @@ pub fn kill(name: &String, session: &Session) {
         command.extend(window.kill.iter().map(|s| s.as_str()));
         tmux.command(command);
     }
-    tmux.run();
+    tmux.run(false);
 }
 
 pub fn list_sessions() -> (Vec<String>, Vec<String>) {
+    if !Tmux::attached() {
+        return (Vec::new(), Vec::new());
+    }
+
     let mut tmux = Tmux::new();
     tmux.command(["ls", "-F", "#{session_name} #{session_attached}"]);
-    let res = tmux.run().unwrap_or_default();
+    let res = tmux.run(false).unwrap_or_default();
     let mut r: (Vec<String>, Vec<String>) = (vec![], vec![]);
     for (name, attached) in res
         .lines()
@@ -152,5 +162,5 @@ fn create_session(name: &String, session: &Session) -> bool {
             &w.command,
         ]);
     }
-    tmux.run().is_some()
+    tmux.run(false).is_some()
 }
