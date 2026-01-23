@@ -39,7 +39,6 @@ jobs:
       - uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: ${{ github.event.repository.name }}
-          target: ${{ matrix.target }}
           archive: $bin-${{ github.ref_name }}-$target
           token: ${{ secrets.GITHUB_TOKEN }}
           ref: ${{ github.ref }}
