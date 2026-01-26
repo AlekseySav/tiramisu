@@ -106,13 +106,7 @@ impl Logger {
                             .write(true)
                             .create(true)
                             .append(true)
-                            .open(
-                                &config
-                                    .logfile
-                                    .path
-                                    .as_ref()
-                                    .unwrap_or(&PathBuf::from_str("log.log").unwrap()), /* TODO */
-                            )?,
+                            .open(&config.logfile.path.as_ref().unwrap_or(&logpath()))?,
                     ),
             )
             .apply()
@@ -150,4 +144,11 @@ impl<T: Default, E: std::fmt::Display> LogResult<T> for Result<T, E> {
             }
         }
     }
+}
+
+fn logpath() -> PathBuf {
+    dirs::cache_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join("tiramisu")
+        .join("tiramisu.log")
 }
