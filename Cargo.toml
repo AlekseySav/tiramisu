@@ -5,8 +5,12 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
-chrono = "0.4.43"
+chrono = { version = "0.4.43", features = ["serde"] }
 crossterm = "0.29.0"
 fern = "0.7.1"
-log = "0.4.29"
+getset = "0.1.6"
+log = { version = "0.4.29", features = ["serde"] }
+serde = "1.0.228"
+serde_valid = "2.0.1"
 tokio = { version = "1.49.0", features = ["full"] }
+toml = "0.9.11"
