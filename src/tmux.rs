@@ -1,166 +1,206 @@
-use crate::ui::{Session, State};
-use std::process::{Command, Stdio};
+use anyhow::{Context, Result, bail};
+use std::{collections::HashMap, process::Stdio};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines, Stdin},
+    process::{Child, ChildStderr, ChildStdin, ChildStdout, Command},
+    sync::watch,
+    task::JoinHandle,
+};
 
+/// Tmux session config
+#[derive(Debug, Default)]
+pub struct Session {
+    pub name: String,
+    pub root: String,
+    pub windows: Vec<Window>,
+    pub created: bool,
+    pub attached: bool,
+}
+
+/// Tmux window config
+#[derive(Debug, Default)]
+pub struct Window {
+    pub name: String,
+    pub layout: String,
+    pub panes: Vec<Pane>,
+}
+
+/// Tmux pane config
+#[derive(Debug, Default)]
+pub struct Pane {
+    pub root: String,
+    pub command: Option<String>,
+}
+
+/// Tmux control session client
+/// Tracks data about all sessions
+#[derive(Debug)]
 pub struct Tmux {
-    args: Vec<String>,
+    sessions: HashMap<String, Session>,
+    client: Option<String>,
+    update: watch::Receiver<bool>,
+    finish: watch::Sender<bool>,
+    handle: JoinHandle<()>,
 }
 
 impl Tmux {
-    pub fn new() -> Self {
-        Self { args: Vec::new() }
-    }
-
-    pub fn command<S: AsRef<str>, I: IntoIterator<Item = S>>(&mut self, it: I) {
-        for s in it {
-            let s = s.as_ref();
-            if s != "" {
-                self.args.push(s.to_string());
-            }
-        }
-        self.args.push(";".to_string());
-    }
-
-    pub fn run(self, inherit: bool) -> Option<String> {
-        log::trace!("tmux {:?}", self.args);
-        let mut command = Command::new("tmux");
-        if inherit {
-            command
-                .stdin(Stdio::inherit())
-                .stdout(Stdio::inherit())
-                .stderr(Stdio::inherit());
-        }
-        match command.args(self.args).output() {
-            Ok(r) => {
-                let stderr = Self::to_string(r.stderr);
-                if !stderr.is_empty() {
-                    log::warn!("tmux stderr: {}", stderr);
-                }
-                if !r.status.success() {
-                    match r.status.code() {
-                        Some(code) => log::error!("Exited with status code: {code}"),
-                        None => log::error!("Process terminated by signal"),
-                    }
-                    return None;
-                }
-                Some(Self::to_string(r.stdout))
-            }
-            Err(e) => {
-                log::error!("Failed to run tmux: {}", e);
-                None
-            }
+    /// Creates new tmux control session client
+    pub fn new<I: IntoIterator<Item = Session>>(it: I) -> Self {
+        let (usx, urx) = watch::channel(false);
+        let (fsx, frx) = watch::channel(false);
+        Self {
+            sessions: HashMap::from_iter(it.into_iter().map(|s| (s.name.clone(), s))),
+            client: None, /* TODO */
+            update: urx,
+            finish: fsx,
+            handle: tokio::spawn(async move {
+                TmuxControl::new(usx, frx).run().await;
+            }),
         }
     }
 
-    pub fn attached() -> bool {
-        std::env::var("TMUX").is_ok()
+    /// Returns actual list of sessions
+    pub async fn sessions(&mut self) -> impl Iterator<Item = &Session> {
+        if self.needs_update() {
+            self.update();
+        }
+        self.sessions.values()
     }
 
-    fn to_string(v: Vec<u8>) -> String {
-        match String::from_utf8(v) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("tmux returned non-utf8: {:?}", e.into_bytes().as_slice());
-                String::new()
-            }
-        }
+    /// Switches client to session `session`
+    /// On success, returns `true` and closes session
+    pub async fn switch_to(&mut self, session: &Session) -> bool {
+        /* TODO */
+        true
+    }
+
+    /// Closes control session
+    pub async fn finish(self) {
+        self.finish.send(true);
+        self.handle.await.unwrap() /* TODO */
+    }
+
+    fn update(&mut self) {
+        /* TODO */
+    }
+
+    fn needs_update(&mut self) -> bool {
+        let updated = self.update.borrow_and_update();
+        updated.has_changed() && *updated == true
     }
 }
 
-pub fn open(name: &String, session: &Session) -> bool {
-    if session.state == State::None {
-        if !create_session(name, session) {
-            return false;
-        }
-    }
-
-    let mut tmux = Tmux::new();
-    if Tmux::attached() {
-        tmux.command(["switch-client", "-t", name]);
-        tmux.run(false).is_some()
-    } else {
-        tmux.command(["attach", "-t", name]);
-        tmux.run(true).is_some()
-    }
+struct TmuxControl {
+    update: watch::Sender<bool>,
+    finish: watch::Receiver<bool>,
 }
 
-pub fn kill(name: &String, session: &Session) {
-    let mut tmux = Tmux::new();
-    match session.state {
-        State::None => {
-            log::warn!("Unable to kill {} because it is not created", name);
-            return;
-        }
-        State::Attached => {
-            log::warn!("Unable to kill {} because it is attached", name);
-            return;
-        }
-        State::Created => (),
+impl TmuxControl {
+    fn new(update: watch::Sender<bool>, finish: watch::Receiver<bool>) -> Self {
+        Self { update, finish }
     }
 
-    if session.state != State::Created {}
-    for (i, window) in session.windows.iter().enumerate() {
-        let target = format!("{}:{}", name, i);
-        if window.kill.is_empty() {
-            tmux.command(["kill-window", "-t", &target]);
-            continue;
+    async fn run(mut self) {
+        while !*self.finish.borrow() {
+            if self.updated().await {
+                self.update.send(true);
+            }
         }
-        let mut command = Vec::from(["send-keys", "-t", &target]);
-        command.extend(window.kill.iter().map(|s| s.as_str()));
-        tmux.command(command);
+        self.finish().await;
     }
-    tmux.run(false);
+
+    async fn finish(mut self) {}
+
+    async fn updated(&mut self) -> bool {}
 }
 
-pub fn list_sessions() -> (Vec<String>, Vec<String>) {
-    if !Tmux::attached() {
-        return (Vec::new(), Vec::new());
-    }
+#[derive(Default, Debug)]
+struct TmuxRunner {
+    args: Vec<String>,
+}
 
-    let mut tmux = Tmux::new();
-    tmux.command(["ls", "-F", "#{session_name} #{session_attached}"]);
-    let res = tmux.run(false).unwrap_or_default();
-    let mut r: (Vec<String>, Vec<String>) = (vec![], vec![]);
-    for (name, attached) in res
-        .lines()
-        .map(|s| s.split(' ').collect())
-        .map(|s: Vec<&str>| (String::from(s[0]), s[1].parse::<usize>().unwrap() == 1))
-    {
-        if attached {
-            r.0.push(name);
-        } else {
-            r.1.push(name);
+#[derive(Default, Debug)]
+struct TmuxHandle {
+    cmd: String,
+    stdin: Option<BufWriter<ChildStdin>>,
+    stdout: Option<Lines<BufReader<ChildStdout>>>,
+    stderr: Option<JoinHandle<()>>,
+    child: Option<Child>,
+}
+
+impl TmuxRunner {
+    /// Adds parameters to command
+    pub fn with<S: AsRef<str>, I: IntoIterator<Item = S>>(it: I) -> Self {
+        Self {
+            args: Vec::from_iter(it.into_iter().map(|s| s.as_ref().into())),
         }
     }
 
-    r
+    /// Adds parameters to command
+    pub fn add<S: AsRef<str>, I: IntoIterator<Item = S>>(&mut self, it: I) -> &mut Self {
+        self.args.extend(it.into_iter().map(|s| s.as_ref().into()));
+        self
+    }
+
+    /// Executes command
+    pub async fn run(&mut self) -> TmuxHandle {
+        self.run_with(false)
+    }
+
+    /// Executes command with inherited stdin/stdout
+    pub fn run_detached(&mut self) -> TmuxHandle {
+        self.run_with(true)
+    }
+
+    fn run_with(&mut self, detached: bool) -> TmuxHandle {
+        let command = self.args.join(" ");
+        log::debug!("Running \"tmux {}\"", command);
+
+        let mut cmd = Command::new("tmux");
+        cmd.args(&self.args).stderr(Stdio::piped());
+        if !detached {
+            cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
+        }
+
+        cmd.spawn()
+            .map(|mut c| TmuxHandle {
+                cmd: command.clone(),
+                stdin: c.stdin.take().map(|c| BufWriter::new(c)),
+                stdout: c.stdout.take().map(|c| BufReader::new(c).lines()),
+                stderr: c.stderr.take().map(|c| stderr_handler(c)),
+                child: Some(c),
+            })
+            .with_context(|| format!("Failed to run 'tmux {command}'"))
+            .unwrap_or_default() /* TODO */
+    }
+
+    // /// Executes command in control session `control`
+    // pub async fn run_in(&mut self, control: &mut TmuxHandle) -> Result<()> {
+    //     let command = self.args.join(" ");
+    //     log::debug!("Sending \"{}\" to \"tmux {}\"", command, control.cmd);
+
+    //     match &mut control.stdin {
+    //         Some(w) => w
+    //             .write_all(command.as_bytes())
+    //             .await
+    //             .and(w.write_u8(b'\n').await)
+    //             .and(w.flush().await)
+    //             .with_context(|| format!("Failed to run 'tmux {command}'"))?,
+    //         None => (),
+    //     }
+    //     Ok(())
+    // }
 }
 
-fn create_session(name: &String, session: &Session) -> bool {
-    let mut tmux = Tmux::new();
-    let w = &session.windows[0];
-    let root = session.root.to_str().unwrap();
-    tmux.command([
-        "new-session",
-        "-d",
-        "-s",
-        name,
-        "-c",
-        root,
-        "-n",
-        &w.name,
-        &w.command,
-    ]);
-    for (i, w) in session.windows.iter().enumerate().skip(1) {
-        tmux.command([
-            "new-window",
-            "-t",
-            &format!("{}:{}", name, i),
-            "-c",
-            root,
-            "-n",
-            &w.name,
-            &w.command,
-        ]);
-    }
-    tmux.run(false).is_some()
+fn stderr_handler(stderr: ChildStderr) -> JoinHandle<()> {
+    let mut r = BufReader::new(stderr).lines();
+    tokio::spawn(async move {
+        loop {
+            match r.next_line().await {
+                Ok(None) => break,
+                Ok(Some(s)) => log::warn!("tmux stderr: {}", s),
+                Err(err) => log::warn!("tmux stderr is corrupted: {}", err),
+            }
+        }
+    })
 }

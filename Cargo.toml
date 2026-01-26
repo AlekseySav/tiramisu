@@ -5,23 +5,8 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
-capturing-glob = "0.1.1"
 chrono = "0.4.43"
-clap = { version = "4.5.54", features = ["derive"] }
-color-eyre = "0.6.5"
 crossterm = "0.29.0"
-derive-new = "0.7.0"
-dirs = "6.0.0"
 fern = "0.7.1"
-indexmap = "2.13.0"
 log = "0.4.29"
-nucleo = "0.5.0"
-ratatui = "0.30.0"
-serde = "1.0.228"
-serde-aux = "4.7.0"
-serde-inline-default = "1.0.0"
-serde_valid = "2.0.1"
-serde_with = { version = "3.16.1", features = ["chrono_0_4"] }
-temp-env = "0.3.6"
-toml = "0.9.11"
-tui-input = "0.15.0"
+tokio = { version = "1.49.0", features = ["full"] }
