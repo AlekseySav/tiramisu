@@ -1,11 +1,11 @@
 use anyhow::{Context, Result, bail};
-use std::{collections::HashMap, process::Stdio};
-use tokio::{
-    io::{AsyncBufReadExt, AsyncWriteExt, BufReader, BufWriter, Lines, Stdin},
-    process::{Child, ChildStderr, ChildStdin, ChildStdout, Command},
-    sync::watch,
-    task::JoinHandle,
+use std::{
+    collections::HashMap,
+    io::BufWriter,
+    process::{Child, ChildStdin, ChildStdout, Command, Stdio},
 };
+
+use crate::{logger::LogResult, utils::NonBlockLines};
 
 /// Tmux session config
 #[derive(Debug, Default)]
@@ -38,16 +38,12 @@ pub struct Pane {
 pub struct Tmux {
     sessions: HashMap<String, Session>,
     client: Option<String>,
-    update: watch::Receiver<bool>,
-    finish: watch::Sender<bool>,
     handle: JoinHandle<()>,
 }
 
 impl Tmux {
     /// Creates new tmux control session client
     pub fn new<I: IntoIterator<Item = Session>>(it: I) -> Self {
-        let (usx, urx) = watch::channel(false);
-        let (fsx, frx) = watch::channel(false);
         Self {
             sessions: HashMap::from_iter(it.into_iter().map(|s| (s.name.clone(), s))),
             client: None, /* TODO */
@@ -62,7 +58,7 @@ impl Tmux {
     /// Returns actual list of sessions
     pub async fn sessions(&mut self) -> impl Iterator<Item = &Session> {
         if self.needs_update() {
-            self.update();
+            self.update().await;
         }
         self.sessions.values()
     }
@@ -80,7 +76,7 @@ impl Tmux {
         self.handle.await.unwrap() /* TODO */
     }
 
-    fn update(&mut self) {
+    async fn update(&mut self) {
         /* TODO */
     }
 
@@ -119,12 +115,12 @@ struct TmuxRunner {
     args: Vec<String>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 struct TmuxHandle {
     cmd: String,
     stdin: Option<BufWriter<ChildStdin>>,
-    stdout: Option<Lines<BufReader<ChildStdout>>>,
-    stderr: Option<JoinHandle<()>>,
+    stdout: Option<NonBlockLines<ChildStdout>>,
+    stderr: Option<NonBlockLines<ChildStdout>>,
     child: Option<Child>,
 }
 
@@ -144,34 +140,32 @@ impl TmuxRunner {
 
     /// Executes command
     pub async fn run(&mut self) -> TmuxHandle {
-        self.run_with(false)
+        self.run_with(
+            Command::new("tmux")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped()),
+        )
     }
 
     /// Executes command with inherited stdin/stdout
     pub fn run_detached(&mut self) -> TmuxHandle {
-        self.run_with(true)
+        self.run_with(&mut Command::new("tmux"))
     }
 
-    fn run_with(&mut self, detached: bool) -> TmuxHandle {
+    fn run_with(&mut self, cmd: &mut Command) -> TmuxHandle {
         let command = self.args.join(" ");
         log::debug!("Running \"tmux {}\"", command);
-
-        let mut cmd = Command::new("tmux");
         cmd.args(&self.args).stderr(Stdio::piped());
-        if !detached {
-            cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
-        }
-
         cmd.spawn()
             .map(|mut c| TmuxHandle {
                 cmd: command.clone(),
                 stdin: c.stdin.take().map(|c| BufWriter::new(c)),
-                stdout: c.stdout.take().map(|c| BufReader::new(c).lines()),
-                stderr: c.stderr.take().map(|c| stderr_handler(c)),
+                stdout: c.stdout.take().map(|c| NonBlockLines::new(c)),
+                stderr: c.stderr.take().map(|c| NonBlockLines::new(c)),
                 child: Some(c),
             })
             .with_context(|| format!("Failed to run 'tmux {command}'"))
-            .unwrap_or_default() /* TODO */
+            .unwrap_or_log()
     }
 
     // /// Executes command in control session `control`

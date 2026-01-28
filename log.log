@@ -1,0 +1,27 @@
+2026-01-26 17:54:41 [INFO] tiramisu: hello
+2026-01-26 17:55:17 [INFO] tiramisu: oh no
+2026-01-26 17:56:10 [INFO] tiramisu: Failed to live
+2026-01-26 17:56:33 [INFO] tiramisu: Failed to live
+
+Caused by:
+    oh no
+2026-01-26 17:56:55 [INFO] tiramisu: Failed to live
+
+Caused by:
+    oh no
+2026-01-26 17:57:05 [INFO] tiramisu: Failed to live
+
+Caused by:
+    oh no
+2026-01-26 17:57:25 [INFO] tiramisu: Failed to live
+
+Caused by:
+    oh no
+2026-01-26 18:55:13 [INFO] tiramisu: Failed to live
+
+Caused by:
+    oh no
+2026-01-28 10:16:36 [INFO] tiramisu: Failed to live
+
+Caused by:
+    oh no

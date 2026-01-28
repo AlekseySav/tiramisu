@@ -1,35 +1,14 @@
 [[session]]
-  root = "$HOME/.dotfiles"
-  name = "dotfiles"
-  [[session.window]]
-    name = "dotfiles"
-    command = "nvim ."
-    kill = [":wq", "Enter"]
-  [[session.window]]
-    name = "shell"
-    kill = ["C-d"]
-
-[[session]]
   root = "$HOME/src/(*)"
   name = "src/$1"
   [[session.window]]
     name = "$1"
-    command = "nvim ."
-    kill = [":wq", "Enter"]
-  [[session.window]]
-    name = "shell"
-    kill = ["C-d"]
-
-[[session]]
-  root = "$HOME/tmp/(*)"
-  name = "tmp/$1"
-  [[session.window]]
-    name = "$1"
-    command = "nvim ."
-    kill = [":wq", "Enter"]
-  [[session.window]]
-    name = "shell"
     kill = ["C-d"]
 
 [logger]
-  level = "info"
+  [logger.messages]
+    level = "info"
+    ttl = 5
+  [logger.logfile]
+    level = "debug"
+    path = "$HOME/.cache/tiramisu/tiramisu.log"

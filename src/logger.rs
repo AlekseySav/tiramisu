@@ -5,7 +5,6 @@ use serde_valid::Validate;
 use std::{
     collections::VecDeque,
     path::PathBuf,
-    str::FromStr,
     sync::{Arc, Mutex},
 };
 
@@ -40,7 +39,7 @@ pub struct Config {
     /// Logfile config
     logfile: LogFile,
     /// Messages config
-    message: LogMessage,
+    messages: LogMessage,
 }
 
 /// Logger message
@@ -79,7 +78,7 @@ impl Logger {
         fern::Dispatch::new()
             .chain(
                 fern::Dispatch::new()
-                    .level(config.message.level.unwrap_or(log::LevelFilter::Info))
+                    .level(config.messages.level.unwrap_or(log::LevelFilter::Info))
                     .format(|out, message, _| out.finish(format_args!("{}", message)))
                     .chain(fern::Output::call(move |record| {
                         queue.lock().unwrap().push_back(Message {
@@ -91,7 +90,7 @@ impl Logger {
             )
             .chain(
                 fern::Dispatch::new()
-                    .level(config.logfile.level.unwrap_or(log::LevelFilter::Info))
+                    .level(config.logfile.level.unwrap_or(log::LevelFilter::Debug))
                     .format(|out, message, record| {
                         out.finish(format_args!(
                             "{} [{}] {}: {}",

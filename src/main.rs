@@ -1,50 +1,41 @@
 mod app;
+pub mod logger;
 pub mod tmux;
 
 use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use duct::cmd;
 use std::io::{self, Write, stdout};
 
-use crate::tmux::{Pane, Session, Window};
+use crate::logger::Logger;
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    fern::Dispatch::new()
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "{} [{}] {}: {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.module_path().unwrap_or(""),
-                message
-            ))
-        })
-        .level(log::LevelFilter::Trace)
-        .chain(std::io::stderr())
-        .apply()?;
+fn main() -> anyhow::Result<()> {
+    let c = cmd!("echo", "hello");
+    let r = c.stderr_capture().reader()?;
+    let log = Logger::new(&logger::Config::default())?;
 
-    let mut tmux = tmux::Tmux::new().await?;
-    println!("{:?}", tmux);
+    // let mut tmux = tmux::Tmux::new().await?;
+    // println!("{:?}", tmux);
 
-    tmux.switch(&Session {
-        name: "hello".to_string(),
-        root: "/".to_string(),
-        windows: Vec::from([Window {
-            name: "a".to_string(),
-            layout: "main-vertical".to_string(),
-            panes: Vec::from([Pane {
-                root: "/".to_string(),
-                command: None,
-            }]),
-        }]),
-        created: false,
-        attached: false,
-    })
-    .await?;
+    // tmux.switch(&Session {
+    //     name: "hello".to_string(),
+    //     root: "/".to_string(),
+    //     windows: Vec::from([Window {
+    //         name: "a".to_string(),
+    //         layout: "main-vertical".to_string(),
+    //         panes: Vec::from([Pane {
+    //             root: "/".to_string(),
+    //             command: None,
+    //         }]),
+    //     }]),
+    //     created: false,
+    //     attached: false,
+    // })
+    // .await?;
 
-    tmux.wait().await?;
+    // tmux.wait().await?;
     Ok(())
 
     // // Setup terminal
