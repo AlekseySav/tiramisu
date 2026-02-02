@@ -2,7 +2,7 @@ use anyhow::bail;
 use regex::Regex;
 use std::collections::HashMap;
 
-use crate::tmux::{Handler, Runner, Session, commands::list_sessions};
+use crate::tmux::{Handler, Runner, Session, list_sessions};
 
 /// Tmux control session handler
 pub struct Control {
@@ -56,7 +56,10 @@ impl Control {
         let mut res = false;
         loop {
             match self.handler.getline() {
-                Some(s) if s == "%sessions-changed" => res = true,
+                Some(s) if s == "%sessions-changed" => {
+                    log::trace!("tmux 'sessions-changed' event received");
+                    res = true;
+                }
                 None => break res,
                 _ => (),
             }

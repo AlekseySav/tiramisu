@@ -27,3 +27,8 @@ pub fn list_sessions() -> impl Iterator<Item = Session> {
         .map(|s| inner(&s).unwrap_or_log())
         .filter_map(|s| s)
 }
+
+/// Switch to session
+pub fn switch_to(session: &Session) -> bool {
+    true
+}
