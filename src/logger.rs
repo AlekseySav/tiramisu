@@ -29,7 +29,7 @@ pub struct LogFile {
 #[serde(default)]
 pub struct LogMessage {
     /// Timeout for messages
-    ttl: Option<chrono::Duration>,
+    ttl_seconds: Option<i64>,
     /// Log level filter
     level: Option<log::LevelFilter>,
 }
@@ -71,9 +71,13 @@ impl Logger {
         let logger = Logger {
             queue: Arc::default(),
             msg: VecDeque::default(),
-            ttl: chrono::Duration::seconds(5),
+            ttl: chrono::Duration::seconds(config.messages.ttl_seconds.unwrap_or(5)),
         };
         let queue = logger.queue.clone();
+
+        if let Some(parent) = config.logfile.path.as_ref().unwrap_or(&logpath()).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
 
         fern::Dispatch::new()
             .chain(
