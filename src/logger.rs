@@ -8,6 +8,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use crate::env;
+
 /// Result<T, _> that can be unwrapped with logging error if any
 pub trait LogResult<T> {
     /// Unwrap value, and log error if any
@@ -19,7 +21,7 @@ pub trait LogResult<T> {
 pub struct LogFile {
     /// Path to log file
     #[serde(default)]
-    path: Option<PathBuf>,
+    path: Option<String>,
     /// Log level filter
     #[serde(default)]
     level: Option<log::LevelFilter>,
@@ -67,7 +69,7 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new(config: &Config) -> anyhow::Result<Logger> {
+    pub fn new(config: Config) -> anyhow::Result<Logger> {
         let logger = Logger {
             queue: Arc::default(),
             msg: VecDeque::default(),
@@ -75,7 +77,11 @@ impl Logger {
         };
         let queue = logger.queue.clone();
 
-        if let Some(parent) = config.logfile.path.as_ref().unwrap_or(&logpath()).parent() {
+        let path = match config.logfile.path {
+            Some(p) => env::expand(p, env::env)?.into(),
+            None => logpath(),
+        };
+        if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
@@ -109,7 +115,7 @@ impl Logger {
                             .write(true)
                             .create(true)
                             .append(true)
-                            .open(&config.logfile.path.as_ref().unwrap_or(&logpath()))?,
+                            .open(&path)?,
                     ),
             )
             .apply()
@@ -132,7 +138,7 @@ impl Logger {
 impl Drop for Logger {
     fn drop(&mut self) {
         for m in self.queue.lock().unwrap().iter() {
-            eprintln!("{}", m.message())
+            eprintln!("{}: {}", m.level.to_string(), m.message())
         }
     }
 }

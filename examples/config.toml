@@ -2,13 +2,13 @@
   root = "$HOME/src/(*)"
   name = "src/$1"
   [[session.window]]
-    name = "$1"
-    kill = ["C-d"]
+    name = "lalala"
+    safe_kill = ["C-d"]
 
-[logger]
-  [logger.messages]
-    level = "info"
-    ttl = 5
-  [logger.logfile]
-    level = "debug"
-    path = "$HOME/.cache/tiramisu/tiramisu.log"
+[logger.messages]
+  level = "trace"
+  ttl_seconds = 5
+
+[logger.logfile]
+  level = "trace"
+  path = "log.log"

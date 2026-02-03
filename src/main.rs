@@ -1,20 +1,38 @@
 mod app;
-pub mod logger;
-pub mod tmux;
+mod env;
+mod logger;
+mod tmux;
+mod tui;
+
+use serde::{Deserialize, Serialize};
 
 use crossterm::{
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use duct::cmd;
 use std::io::{self, Write, stdout};
 
 use crate::logger::Logger;
 
+#[derive(Default, Deserialize, Serialize)]
+struct Config {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    logger: logger::Config,
+    #[serde(default)]
+    session: Vec<tmux::Session>,
+}
+
 fn main() -> anyhow::Result<()> {
-    let c = cmd!("echo", "hello");
-    let r = c.stderr_capture().reader()?;
-    let log = Logger::new(&logger::Config::default())?;
+    let config: Config = toml::from_str(&std::fs::read_to_string("./examples/config.toml")?)?;
+    let logger = Logger::new(config.logger)?;
+    let mut tmux = tmux::Control::start(
+        config.name.as_ref().map_or("tiramisu/control", |s| &s),
+        tmux::expand_sessions(config.session.iter())?,
+    )?;
+
+    tmux.finish();
 
     // let mut tmux = tmux::Tmux::new().await?;
     // println!("{:?}", tmux);

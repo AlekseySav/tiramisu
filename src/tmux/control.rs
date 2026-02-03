@@ -2,7 +2,7 @@ use anyhow::bail;
 use regex::Regex;
 use std::collections::HashMap;
 
-use crate::tmux::{Handler, Runner, Session, list_sessions};
+use crate::tmux::{Handler, Runner, Session, config::State, list_sessions};
 
 /// Tmux control session handler
 pub struct Control {
@@ -15,18 +15,14 @@ impl Control {
     pub fn start<'a, S, I>(s: S, it: I) -> anyhow::Result<Self>
     where
         S: AsRef<str>,
-        I: Iterator<Item = &'a Session>,
+        I: Iterator<Item = Session>,
     {
         check_version()?;
         let res = Runner::new().args(["-C", "new", "-s", s.as_ref()]).run()?;
 
         let mut res = Control {
             handler: res,
-            sessions: HashMap::from_iter(it.map(|s| {
-                let mut s = s.clone();
-                s.configured = true;
-                (s.name.clone(), s)
-            })),
+            sessions: HashMap::from_iter(it.map(|s| (s.name().clone(), s))),
         };
         res.update();
         Ok(res)
@@ -67,10 +63,18 @@ impl Control {
     }
 
     fn update(&mut self) {
-        self.sessions.retain(|_, s| s.configured);
+        self.sessions.retain(|_, s| *s.configured());
+        self.sessions.iter_mut().for_each(|(_, s)| {
+            s.set_state(State::None);
+        });
         for s in list_sessions() {
-            self.sessions.entry(s.name.clone()).or_insert(s).state = s.state;
+            let state = *s.state();
+            self.sessions
+                .entry(s.name().clone())
+                .or_insert(s)
+                .set_state(state);
         }
+        log::trace!("tmux sessions: {:?}", self.sessions.values());
     }
 }
 
