@@ -5,7 +5,7 @@ use serde_valid::Validate;
 use std::collections::HashMap;
 use toml::{Table, Value};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum SessionState {
     #[default]
     None,
@@ -60,10 +60,10 @@ pub struct Session {
     /// List of wintowd
     pub window: Vec<Window>,
     /// Session state
-    #[serde(skip)]
+    #[serde(skip_deserializing)]
     pub state: SessionState,
     /// Is session present in configuration?
-    #[serde(skip)]
+    #[serde(skip_deserializing)]
     #[serde(default = "default_true")]
     pub configured: bool,
 }

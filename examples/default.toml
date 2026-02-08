@@ -13,6 +13,7 @@ name = "tiramisu/control"
 [theme]
   prompt = {}
 
+
 [keybindings]
   enter = { type = "Select", help = "select current line" }
   backspace = { type = "Cursor", offset = -1, delete = true, help = "delete previous char" }
