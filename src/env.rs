@@ -1,6 +1,25 @@
+use std::path::PathBuf;
+
 use anyhow::{Context, Result};
 
-/// Substitutes enviorment variables
+/// Set default enviormental variables
+pub fn init() {
+    // TODO: probably should avoid unsafe code here
+    if std::env::var("TIRAMISU_LOG_PATH").is_err() {
+        unsafe {
+            // SAFETY: safe in single-threaded code
+            std::env::set_var("TIRAMISU_LOG_PATH", log_path().as_os_str());
+        }
+    }
+    if std::env::var("TIRAMISU_CONFIG_PATH").is_err() {
+        unsafe {
+            // SAFETY: safe in single-threaded code
+            std::env::set_var("TIRAMISU_CONFIG_PATH", config_path().as_os_str());
+        }
+    }
+}
+
+/// Substitutes enviormental variables
 pub fn expand<S: AsRef<str>>(p: S, args: impl Fn(&String) -> Result<String>) -> Result<String> {
     let mut prev = '\0';
     let mut res = String::new();
@@ -36,4 +55,18 @@ pub fn env(s: &String) -> Result<String> {
         return Ok(String::new());
     }
     std::env::var(s).with_context(|| format!("Failed to substitute variable '${s}'"))
+}
+
+fn log_path() -> PathBuf {
+    dirs::cache_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join("tiramisu")
+        .join("tiramisu.log")
+}
+
+fn config_path() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or(PathBuf::from("."))
+        .join("tiramisu")
+        .join("config.toml")
 }

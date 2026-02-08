@@ -1,47 +1,17 @@
 use anyhow::Context;
 use getset::Getters;
-use serde::{Deserialize, Serialize};
-use serde_valid::Validate;
 use std::{
     collections::VecDeque,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use crate::env;
+use crate::{config, env};
 
 /// Result<T, _> that can be unwrapped with logging error if any
 pub trait LogResult<T> {
     /// Unwrap value, and log error if any
     fn unwrap_or_log(self) -> T;
-}
-
-#[derive(Default, Serialize, Deserialize, Validate)]
-#[serde(default)]
-pub struct LogFile {
-    /// Path to log file
-    #[serde(default)]
-    path: Option<String>,
-    /// Log level filter
-    #[serde(default)]
-    level: Option<log::LevelFilter>,
-}
-
-#[derive(Default, Serialize, Deserialize, Validate)]
-#[serde(default)]
-pub struct LogMessage {
-    /// Timeout for messages
-    ttl_seconds: Option<i64>,
-    /// Log level filter
-    level: Option<log::LevelFilter>,
-}
-
-#[derive(Default, Serialize, Deserialize, Validate)]
-pub struct Config {
-    /// Logfile config
-    logfile: LogFile,
-    /// Messages config
-    messages: LogMessage,
 }
 
 /// Logger message
@@ -69,18 +39,15 @@ pub struct Logger {
 }
 
 impl Logger {
-    pub fn new(config: Config) -> anyhow::Result<Logger> {
+    pub fn new(config: config::Logger) -> anyhow::Result<Logger> {
         let logger = Logger {
             queue: Arc::default(),
             msg: VecDeque::default(),
-            ttl: chrono::Duration::seconds(config.messages.ttl_seconds.unwrap_or(5)),
+            ttl: chrono::Duration::seconds(config.messages.ttl_seconds),
         };
         let queue = logger.queue.clone();
 
-        let path = match config.logfile.path {
-            Some(p) => env::expand(p, env::env)?.into(),
-            None => logpath(),
-        };
+        let path: PathBuf = env::expand(config.logger.path, env::env)?.into();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -88,7 +55,7 @@ impl Logger {
         fern::Dispatch::new()
             .chain(
                 fern::Dispatch::new()
-                    .level(config.messages.level.unwrap_or(log::LevelFilter::Info))
+                    .level(config.messages.level)
                     .format(|out, message, _| out.finish(format_args!("{}", message)))
                     .chain(fern::Output::call(move |record| {
                         queue.lock().unwrap().push_back(Message {
@@ -100,7 +67,7 @@ impl Logger {
             )
             .chain(
                 fern::Dispatch::new()
-                    .level(config.logfile.level.unwrap_or(log::LevelFilter::Debug))
+                    .level(config.logger.level)
                     .format(|out, message, record| {
                         out.finish(format_args!(
                             "{} [{}] {}: {}",
@@ -138,17 +105,17 @@ impl Logger {
 impl Drop for Logger {
     fn drop(&mut self) {
         for m in self.queue.lock().unwrap().iter() {
-            eprintln!("{}: {}", m.level.to_string(), m.message())
+            eprintln!("{}: {:?}", m.level.to_string(), m.message())
         }
     }
 }
 
-impl<T: Default, E: std::fmt::Display> LogResult<T> for Result<T, E> {
+impl<T: Default, E: std::fmt::Debug> LogResult<T> for Result<T, E> {
     fn unwrap_or_log(self) -> T {
         match self {
             Ok(v) => v,
             Err(err) => {
-                log::error!("{}", err);
+                log::error!("{:?}", err);
                 T::default()
             }
         }

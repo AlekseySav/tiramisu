@@ -1,62 +1,12 @@
-use std::path::Path;
-
 use anyhow::{Context, Result, anyhow};
 use capturing_glob::glob;
-use getset::{Getters, Setters};
-use serde::{Deserialize, Serialize};
-use serde_valid::Validate;
 
-use crate::{env, logger::LogResult, tmux::Runner};
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum State {
-    #[default]
-    None,
-    Created,
-    Attached,
-}
-
-/// Tmux session config
-#[derive(Debug, Default, Clone, Serialize, Deserialize, Validate, Getters, Setters)]
-pub struct Session {
-    /// Session name
-    #[getset(get = "pub")]
-    name: String,
-    /// Session root path glob pattern
-    root: String,
-    /// List of wintowd
-    #[validate(min_items = 1)]
-    window: Vec<Window>,
-    /// Session state
-    #[serde(skip)]
-    #[getset(get = "pub", set = "pub")]
-    state: State,
-    /// Is session present in configuration?
-    #[serde(skip)]
-    #[getset(get = "pub", set = "pub")]
-    #[serde(default = "default_true")]
-    configured: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Validate)]
-struct Window {
-    /// Window name
-    name: String,
-    /// Window pwd
-    #[serde(default)]
-    root: Option<String>,
-    /// Shell command to execute
-    #[serde(default)]
-    command: Option<String>,
-    /// Safe shutdown command
-    #[serde(default)]
-    safe_kill: Option<Vec<String>>,
-}
+use crate::{config, env, logger::LogResult, tmux::Runner};
 
 /// Preprocess all sessions from input configuration
 pub fn expand_sessions<'a>(
-    it: impl Iterator<Item = &'a Session>,
-) -> Result<impl Iterator<Item = Session>> {
+    it: impl Iterator<Item = &'a config::Session>,
+) -> Result<impl Iterator<Item = config::Session>> {
     // TODO: probably should log all errors
     let mut res = Vec::new();
     for session in it {
@@ -79,7 +29,7 @@ pub fn expand_sessions<'a>(
     Ok(res.into_iter())
 }
 
-fn expand_session(s: &Session, entry: &capturing_glob::Entry) -> Result<Session> {
+fn expand_session(s: &config::Session, entry: &capturing_glob::Entry) -> Result<config::Session> {
     fn args(glob: &capturing_glob::Entry, s: &String) -> Result<String> {
         match s.parse::<usize>() {
             Ok(n) => glob
@@ -93,14 +43,8 @@ fn expand_session(s: &Session, entry: &capturing_glob::Entry) -> Result<Session>
     }
 
     let expand = |s| env::expand(s, |s| args(entry, s));
-    let expand_or = |s| -> Result<Option<String>> {
-        match s {
-            Some(s) => Ok(Some(expand(s)?)),
-            None => Ok(None),
-        }
-    };
 
-    Ok(Session {
+    Ok(config::Session {
         name: expand(&s.name)?,
         root: entry
             .path()
@@ -110,31 +54,31 @@ fn expand_session(s: &Session, entry: &capturing_glob::Entry) -> Result<Session>
         window: s
             .window
             .iter()
-            .map(|w| -> Result<Window> {
-                Ok(Window {
+            .map(|w| -> Result<config::Window> {
+                Ok(config::Window {
                     name: expand(&w.name)?,
-                    root: expand_or(w.root.as_ref())?,
-                    command: expand_or(w.command.as_ref())?,
-                    safe_kill: w.safe_kill.clone(),
+                    root: expand(&w.root)?,
+                    command: expand(&w.command)?,
+                    kill: w.kill.iter().map(|s| expand(s)).collect::<Result<_>>()?,
                 })
             })
-            .collect::<Result<Vec<Window>>>()?,
+            .collect::<Result<Vec<config::Window>>>()?,
         state: s.state,
         configured: s.configured,
     })
 }
 
 /// List created sessions
-pub fn list_sessions() -> impl Iterator<Item = Session> {
-    fn inner(s: &str) -> Result<Option<Session>> {
+pub fn list_sessions() -> impl Iterator<Item = config::Session> {
+    fn inner(s: &str) -> Result<Option<config::Session>> {
         let mut s = s.split(':');
         let session = s.next().ok_or(anyhow!("'tmux ls' failed"))?;
         let state = s.next().ok_or(anyhow!("'tmux ls' failed"))?;
-        let mut res = Session::default();
+        let mut res = config::Session::default();
         res.name = session.into();
         res.state = match state {
-            "1" => State::Attached,
-            _ => State::Created,
+            "1" => config::SessionState::Attached,
+            _ => config::SessionState::Created,
         };
         Ok(Some(res))
     }
@@ -148,7 +92,7 @@ pub fn list_sessions() -> impl Iterator<Item = Session> {
 }
 
 /// Switch to session
-pub fn switch_to(session: &Session) -> bool {
+pub fn switch_to(_session: &config::Session) -> bool {
     // TODO
     true
 }

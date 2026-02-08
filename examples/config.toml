@@ -1,14 +1,13 @@
+[logger]
+  level = "trace"
+  path = "log.log"
+
+[messages]
+  level = "trace"
+
 [[session]]
   root = "$HOME/src/(*)"
   name = "src/$1"
   [[session.window]]
     name = "lalala"
     safe_kill = ["C-d"]
-
-[logger.messages]
-  level = "trace"
-  ttl_seconds = 5
-
-[logger.logfile]
-  level = "trace"
-  path = "log.log"

@@ -1,0 +1,46 @@
+name = "tiramisu/control"
+
+[[session]]
+
+[logger]
+  level = "info"
+  path = "$TIRAMISU_LOG_PATH"
+
+[messages]
+  level = "info"
+  ttl_seconds = 5
+
+[theme]
+  prompt = {}
+
+[keybindings]
+  enter = { type = "Select", help = "select current line" }
+  backspace = { type = "Cursor", offset = -1, delete = true, help = "delete previous char" }
+  'ctrl-?' = { type = "Help", help = "show help" }
+
+  esc = { type = "Quit", help = "quit" }
+  ctrl-c = { type = "Quit", help = "quit" }
+
+  delete = { type = "Cursor", offset = 1, delete = true, help = "delete next char" }
+  ctrl-d = { type = "Cursor", offset = 1, delete = true, help = "delete next char" }
+
+  left = { type = "Cursor", offset = -1, help = "move cursor left" }
+  ctrl-b = { type = "Cursor", offset = -1, help = "move cursor left" }
+
+  right = { type = "Cursor", offset = 1, help = "move cursor right" }
+  ctrl-f = { type = "Cursor", offset = -1, help = "move cursor left" }
+
+  up = { type = "Line", offset = -1, help = "select precious line" }
+  ctrl-p = { type = "Line", offset = -1, help = "select precious line" }
+
+  down = { type = "Cursor", offset = 1, help = "select next line" }
+  ctrl-n = { type = "Cursor", offset = 1, help = "select next line" }
+
+  home = { type = "Cursor", offset = 0, absolute = true, help = "go to the beginning of line" }
+  ctrl-a = { type = "Cursor", offset = 0, absolute = true, help = "go to the beginning of line" }
+
+  end = { type = "Cursor", offset = -1, absolute = true, help = "go to the end of line" }
+  ctrl-e = { type = "Cursor", offset = -1, absolute = true, help = "go to the end of line" }
+
+  ctrl-u = { type = "Cursor", offset = 0, absolute = true, delete = true, help = "delete from begin till cursor" }
+  ctrl-k = { type = "Cursor", offset = -1, absolute = true, delete = true, help = "delete from cursor till end" }

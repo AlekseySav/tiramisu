@@ -2,7 +2,10 @@ use anyhow::bail;
 use regex::Regex;
 use std::collections::HashMap;
 
-use crate::tmux::{Handler, Runner, Session, config::State, list_sessions};
+use crate::{
+    config::{self, Session, SessionState},
+    tmux::{Handler, Runner, expand_sessions, list_sessions},
+};
 
 /// Tmux control session handler
 pub struct Control {
@@ -12,17 +15,16 @@ pub struct Control {
 
 impl Control {
     /// Start new tmux control session
-    pub fn start<'a, S, I>(s: S, it: I) -> anyhow::Result<Self>
-    where
-        S: AsRef<str>,
-        I: Iterator<Item = Session>,
-    {
+    pub fn new(conf: config::Tmux) -> anyhow::Result<Self> {
         check_version()?;
-        let res = Runner::new().args(["-C", "new", "-s", s.as_ref()]).run()?;
+        // TODO: kill session with `conf.name` if any
+        let res = Runner::new().args(["-C", "new", "-s", &conf.name]).run()?;
 
         let mut res = Control {
             handler: res,
-            sessions: HashMap::from_iter(it.map(|s| (s.name().clone(), s))),
+            sessions: HashMap::from_iter(
+                expand_sessions(conf.session.iter())?.map(|s| (s.name.clone(), s)),
+            ),
         };
         res.update();
         Ok(res)
@@ -41,7 +43,7 @@ impl Control {
     }
 
     /// List all sessions (created, attached, configured)
-    pub fn sessions(&mut self) -> impl Iterator<Item = &Session> {
+    pub fn sessions(&mut self) -> impl ExactSizeIterator<Item = &Session> {
         if self.needs_update() {
             self.update()
         }
@@ -63,18 +65,13 @@ impl Control {
     }
 
     fn update(&mut self) {
-        self.sessions.retain(|_, s| *s.configured());
+        self.sessions.retain(|_, s| s.configured);
         self.sessions.iter_mut().for_each(|(_, s)| {
-            s.set_state(State::None);
+            s.state = SessionState::default();
         });
         for s in list_sessions() {
-            let state = *s.state();
-            self.sessions
-                .entry(s.name().clone())
-                .or_insert(s)
-                .set_state(state);
+            self.sessions.entry(s.name.clone()).or_insert(s).state = s.state;
         }
-        log::trace!("tmux sessions: {:?}", self.sessions.values());
     }
 }
 
