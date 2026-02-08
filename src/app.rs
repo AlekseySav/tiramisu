@@ -6,6 +6,7 @@ use crate::{
 use anyhow::{Context, Result};
 use clap::Parser;
 use getset::Getters;
+use ratatui::style::Style;
 
 #[derive(Parser)]
 #[command(name = "tiramisu", version, about = "Tmux session manager")]
@@ -64,6 +65,18 @@ impl App {
             .unwrap() // TODO: refactor self.terminal() or this
             .draw(|frame| {
                 frame.render_widget(self.prompt.data().to_string(), frame.area());
+                let mut p = tui::Paragraph::default();
+                let st = Style::new();
+                for (i, s) in self.tmux.sessions().enumerate() {
+                    p.p(&s.name, &st);
+                    if i == self.selected {
+                        p.p("<<<<<<-------", &st);
+                    }
+                    p.br();
+                }
+                p.set_scroll(self.selected);
+                p.set_rev(true);
+                frame.render_widget(p, frame.area());
                 frame.set_cursor_position((*self.prompt.cursor() as u16, 0));
             })
             .with_context(|| "Failed to render frame")
@@ -97,7 +110,7 @@ impl App {
                 self.selected = self
                     .selected
                     .saturating_add_signed(offset)
-                    .min(self.tmux.sessions().len().saturating_sub(1))
+                    .min(self.tmux.sessions().len().saturating_sub(1));
             }
             Event::Insert(s) => self.prompt.insert(s),
         }
