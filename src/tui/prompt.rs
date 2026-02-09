@@ -1,55 +1,50 @@
-use getset::Getters;
-use unicode_segmentation::UnicodeSegmentation;
+use crate::{app::AppState, config, tui::Paragraph};
+use derive_new::new;
+use ratatui::widgets::Widget;
 
-#[derive(Default, Getters)]
-pub struct Prompt {
-    #[getset(get = "pub")]
-    /// Get prompt data
-    data: String,
-    /// Get cursor position (position to be displayed, not position within string)
-    #[getset(get = "pub")]
-    cursor: usize,
+#[derive(new)]
+pub struct Prompt<'a> {
+    config: &'a config::Prompt,
+    state: &'a AppState,
 }
 
-impl Prompt {
-    /// Insert data at cursor position
-    pub fn insert<S: AsRef<str>>(&mut self, s: S) {
-        let mut data = graphemes(&self.data);
-        for c in graphemes(s.as_ref()) {
-            data.insert(self.cursor, c);
-            self.cursor += 1;
-        }
-        self.data = data.join("");
-        self.set_cursor(0, false);
-    }
-
-    /// Move cursor
-    pub fn set_cursor(&mut self, offset: isize, absolute: bool) {
-        self.cursor = self.get_offset(&graphemes(&self.data), offset, absolute);
-    }
-
-    /// Delete from cursor till specified position
-    pub fn delete(&mut self, offset: isize, absolute: bool) {
-        let data = graphemes(&self.data);
-        let n = self.get_offset(&data, offset, absolute);
-        let (start, end) = (self.cursor.min(n), self.cursor.max(n));
-        self.data = data
-            .into_iter()
-            .enumerate()
-            .filter(|(i, _)| *i < start || *i >= end)
-            .fold(String::new(), |a, (_, b)| a + b);
-        self.set_cursor(start as isize, true);
-    }
-
-    fn get_offset(&self, g: &Vec<&str>, offset: isize, absolute: bool) -> usize {
-        if absolute {
-            if offset < 0 { g.len() } else { offset as usize }
-        } else {
-            self.cursor.saturating_add_signed(offset).min(g.len())
-        }
+impl Prompt<'_> {
+    pub fn cursor(&self) -> usize {
+        self.config.prefix.len() + *self.state.prompt().cursor()
     }
 }
 
-fn graphemes(s: &str) -> Vec<&str> {
-    UnicodeSegmentation::graphemes(s, true).collect()
+impl Widget for Prompt<'_> {
+    fn render(self, area: ratatui::layout::Rect, buf: &mut ratatui::prelude::Buffer) {
+        let mut p = Paragraph::default();
+        p.p(&self.config.prefix);
+        let content = config::Widget::new(
+            self.state.prompt().data().clone() + " ",
+            self.config.content,
+        );
+        p.p(&content);
+        p.p(&self.config.postfix);
+        let hint = config::Widget::new(
+            format!(
+                "{}/{} ",
+                self.state.sessions().len(),
+                self.state.sessions().len()
+            ),
+            self.config.hint,
+        );
+        p.p(&hint);
+        let ruler = config::Widget {
+            text: self.config.ruler.text.repeat(
+                (area.width as usize)
+                    .saturating_sub(self.config.prefix.len())
+                    .saturating_sub(content.len())
+                    .saturating_sub(self.config.postfix.len())
+                    .saturating_sub(hint.len())
+                    .saturating_sub(1),
+            ),
+            style: self.config.ruler.style,
+        };
+        p.p(&ruler);
+        p.render(area, buf);
+    }
 }

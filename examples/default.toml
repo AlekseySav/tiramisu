@@ -10,9 +10,25 @@ name = "tiramisu/control"
   level = "info"
   ttl_seconds = 5
 
-[theme]
-  prompt = {}
+[ui.grid]
+  columns = [{ Percentage = 70 }, { Percentage = 30 }]
+  rows = [{ Fill = 1 }, { Length = 1 }]
 
+[ui.prompt]
+  pos = { x = [0, 1], y = [1, 1] }
+  prefix = { text = "> ", style = { fg = "blue" } }
+  postfix = { text = " < ", style = { fg = "blue" } }
+  ruler = { text = "─", style = { fg = "dark_gray" } }
+  content = {}
+  hint = { fg = "yellow" }
+
+[ui.messages]
+  pos = { x = [1, 1], y = [0, 1] }
+  trace = { level = { text = "trace: ", style = { fg = "dark_gray" } }, content = { fg = "dark_gray" } }
+  debug = { level = { text = "debug: ", style = { fg = "dark_gray" } }, content = { fg = "dark_gray" } }
+  info = { level = { text = "info: ", style = { fg = "blue" } }, content = { fg = "dark_gray" } }
+  warn = { level = { text = "warn: ", style = { fg = "yellow" } }, content = { fg = "dark_gray" } }
+  error = { level = { text = "error: ", style = { fg = "red" } }, content = {} }
 
 [keybindings]
   enter = { type = "Select", help = "select current line" }
@@ -31,11 +47,11 @@ name = "tiramisu/control"
   right = { type = "Cursor", offset = 1, help = "move cursor right" }
   ctrl-f = { type = "Cursor", offset = -1, help = "move cursor left" }
 
-  up = { type = "Line", offset = -1, help = "select precious line" }
-  ctrl-p = { type = "Line", offset = -1, help = "select precious line" }
+  up = { type = "Line", offset = 1, help = "select precious line" }
+  ctrl-p = { type = "Line", offset = 1, help = "select precious line" }
 
-  down = { type = "Cursor", offset = 1, help = "select next line" }
-  ctrl-n = { type = "Cursor", offset = 1, help = "select next line" }
+  down = { type = "Line", offset = -1, help = "select next line" }
+  ctrl-n = { type = "Line", offset = -1, help = "select next line" }
 
   home = { type = "Cursor", offset = 0, absolute = true, help = "go to the beginning of line" }
   ctrl-a = { type = "Cursor", offset = 0, absolute = true, help = "go to the beginning of line" }

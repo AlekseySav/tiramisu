@@ -1,9 +1,12 @@
 use crate::env::{env, expand};
 use crokey::KeyCombination;
+use derive_new::new;
+use ratatui::style::Style;
 use serde::{Deserialize, Serialize};
 use serde_valid::Validate;
 use std::collections::HashMap;
 use toml::{Table, Value};
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum SessionState {
@@ -22,7 +25,7 @@ pub struct Config {
     pub logger: Logger,
     #[serde(flatten)]
     pub key_bindings: KeyBindings,
-    pub theme: Theme,
+    pub ui: Ui,
 }
 
 #[derive(Debug, Serialize, Deserialize, Validate)]
@@ -87,8 +90,9 @@ pub struct Window {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(tag = "type")]
 pub enum Event {
-    /// Quit
     #[default]
+    None,
+    /// Quit
     Quit,
     /// Show help
     Help,
@@ -121,8 +125,59 @@ pub struct KeyBindings {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Theme {
-    prompt: ratatui::style::Style,
+pub struct Grid {
+    pub rows: Vec<ratatui::layout::Constraint>,
+    pub columns: Vec<ratatui::layout::Constraint>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Position {
+    pub x: (usize, usize),
+    pub y: (usize, usize),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, new)]
+pub struct Widget {
+    #[serde(default)]
+    pub text: String,
+    #[serde(default)]
+    pub style: Style,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Prompt {
+    pub pos: Position,
+    pub prefix: Widget,
+    pub postfix: Widget,
+    pub ruler: Widget,
+    pub content: Style,
+    pub hint: Style,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessageUi {
+    pub level: Widget,
+    pub content: Style,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessagesUi {
+    pub pos: Position,
+    #[serde(flatten)]
+    pub style: HashMap<log::Level, MessageUi>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Ui {
+    pub grid: Grid,
+    pub prompt: Prompt,
+    pub messages: MessagesUi,
+}
+
+impl Widget {
+    pub fn len(&self) -> usize {
+        UnicodeSegmentation::graphemes(self.text.as_str(), true).count()
+    }
 }
 
 const DEFAULT_CONFIG: &str = include_str!("../examples/default.toml");

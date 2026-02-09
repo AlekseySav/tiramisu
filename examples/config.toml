@@ -11,3 +11,10 @@
   [[session.window]]
     name = "lalala"
     safe_kill = ["C-d"]
+
+[[session]]
+  root = "$HOME/tmp/(*)"
+  name = "tmp/$1"
+  [[session.window]]
+    name = "lalala"
+    safe_kill = ["C-d"]

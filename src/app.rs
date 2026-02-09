@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crate::{
     config::{self, Event},
     logger::{self, LogResult},
@@ -6,7 +8,6 @@ use crate::{
 use anyhow::{Context, Result};
 use clap::Parser;
 use getset::Getters;
-use ratatui::style::Style;
 
 #[derive(Parser)]
 #[command(name = "tiramisu", version, about = "Tmux session manager")]
@@ -20,6 +21,20 @@ struct Args {
     logs: bool,
 }
 
+#[derive(Debug, Default, Getters)]
+pub struct AppState {
+    #[getset(get = "pub")]
+    prompt: tui::Input,
+    #[getset(get = "pub")]
+    messages: Vec<logger::Message>,
+    #[getset(get = "pub")]
+    sessions: Vec<config::Session>,
+    #[getset(get = "pub")]
+    selected: usize,
+    #[getset(get = "pub")]
+    help: bool,
+}
+
 #[derive(Getters)]
 pub struct App {
     terminal: Option<ratatui::DefaultTerminal>,
@@ -27,9 +42,7 @@ pub struct App {
     logger: logger::Logger,
     events: tui::EventHandler,
     screen: tui::Screen,
-    prompt: tui::Prompt,
-    selected: usize,
-    help: bool,
+    state: AppState,
     running: bool,
 }
 
@@ -43,10 +56,8 @@ impl App {
             logger: logger::Logger::new(config.logger)?,
             tmux: tmux::Control::new(config.tmux)?,
             events: tui::EventHandler::new(config.key_bindings),
-            screen: tui::Screen::new(config.theme),
-            prompt: tui::Prompt::default(),
-            selected: 0,
-            help: false,
+            screen: tui::Screen::new(config.ui),
+            state: AppState::default(),
             running: true,
         })
     }
@@ -64,20 +75,7 @@ impl App {
             .as_mut()
             .unwrap() // TODO: refactor self.terminal() or this
             .draw(|frame| {
-                frame.render_widget(self.prompt.data().to_string(), frame.area());
-                let mut p = tui::Paragraph::default();
-                let st = Style::new();
-                for (i, s) in self.tmux.sessions().enumerate() {
-                    p.p(&s.name, &st);
-                    if i == self.selected {
-                        p.p("<<<<<<-------", &st);
-                    }
-                    p.br();
-                }
-                p.set_scroll(self.selected);
-                p.set_rev(true);
-                frame.render_widget(p, frame.area());
-                frame.set_cursor_position((*self.prompt.cursor() as u16, 0));
+                self.screen.render(frame, &self.state);
             })
             .with_context(|| "Failed to render frame")
         {
@@ -89,31 +87,38 @@ impl App {
     /// Process terminal events
     pub fn update(&mut self) {
         self.terminal();
-        match self
-            .events
-            .read()
-            .with_context(|| "Failed to render frame")
-            .unwrap_or_log()
-        {
-            Event::Quit => self.running = false,
-            Event::Help => self.help = !self.help,
-            Event::Select => todo!(),
-            Event::Cursor {
-                offset,
-                absolute,
-                delete,
-            } => match delete {
-                true => self.prompt.delete(offset, absolute),
-                false => self.prompt.set_cursor(offset, absolute),
-            },
-            Event::Line { offset } => {
-                self.selected = self
-                    .selected
-                    .saturating_add_signed(offset)
-                    .min(self.tmux.sessions().len().saturating_sub(1));
+        loop {
+            match self
+                .events
+                .poll(Duration::from_millis(10)) // TODO: move to config
+                .with_context(|| "Failed to render frame")
+                .unwrap_or_log()
+            {
+                Event::None => break,
+                Event::Quit => self.running = false,
+                Event::Help => self.state.help = !self.state.help,
+                Event::Select => todo!(),
+                Event::Cursor {
+                    offset,
+                    absolute,
+                    delete,
+                } => match delete {
+                    true => self.state.prompt.delete(offset, absolute),
+                    false => self.state.prompt.set_cursor(offset, absolute),
+                },
+                Event::Line { offset } => {
+                    self.state.selected = self
+                        .state
+                        .selected
+                        .saturating_add_signed(offset)
+                        .min(self.tmux.sessions().len().saturating_sub(1));
+                }
+                Event::Insert(s) => self.state.prompt.insert(s),
             }
-            Event::Insert(s) => self.prompt.insert(s),
         }
+
+        self.state.sessions = self.tmux.sessions().cloned().collect();
+        self.state.messages = self.logger.messages();
     }
 
     /// Stop application

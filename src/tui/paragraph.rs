@@ -3,6 +3,8 @@ use ratatui::{layout::Offset, style::Style, text::Span, widgets::Widget};
 use std::mem;
 use unicode_segmentation::UnicodeSegmentation;
 
+use crate::config;
+
 /// Generic text widget
 #[derive(Default, Getters, Setters)]
 pub struct Paragraph<'a> {
@@ -19,11 +21,28 @@ pub struct Paragraph<'a> {
     rev: bool,
 }
 
+impl<'a, A, I> From<I> for Paragraph<'a>
+where
+    A: Iterator<Item = &'a config::Widget>,
+    I: Iterator<Item = A>,
+{
+    fn from(value: I) -> Self {
+        let mut p = Paragraph::default();
+        for line in value {
+            for c in line {
+                p.p(c);
+            }
+            p.br();
+        }
+        p
+    }
+}
+
 impl<'a> Paragraph<'a> {
     /// Add styled text
-    pub fn p(&mut self, data: &'a str, style: &'a Style) -> &mut Self {
-        for c in UnicodeSegmentation::graphemes(data, true) {
-            self.line.push((c, style));
+    pub fn p(&mut self, w: &'a config::Widget) -> &mut Self {
+        for c in UnicodeSegmentation::graphemes(w.text.as_str(), true) {
+            self.line.push((c, &w.style));
         }
         self
     }

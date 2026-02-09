@@ -1,6 +1,7 @@
 use crate::config::{Event, EventConfig, KeyBindings};
 use crossterm::event::{self, KeyCode, KeyModifiers};
 use std::collections::HashMap;
+use std::time::Duration;
 
 pub struct EventHandler {
     config: HashMap<(KeyCode, KeyModifiers), (String, EventConfig)>,
@@ -18,8 +19,11 @@ impl EventHandler {
         }
     }
 
-    pub fn read(&self) -> anyhow::Result<Event> {
+    pub fn poll(&self, timeout: Duration) -> anyhow::Result<Event> {
         loop {
+            if !event::poll(timeout)? {
+                return Ok(Event::None);
+            }
             let event = event::read()?;
             if let event::Event::Paste(s) = event {
                 return Ok(Event::Insert(s));

@@ -15,7 +15,7 @@ pub trait LogResult<T> {
 }
 
 /// Logger message
-#[derive(Clone, Getters)]
+#[derive(Debug, Clone, Getters)]
 pub struct Message {
     /// Creation time
     #[getset(get = "pub")]
