@@ -121,10 +121,3 @@ impl<T: Default, E: std::fmt::Debug> LogResult<T> for Result<T, E> {
         }
     }
 }
-
-fn logpath() -> PathBuf {
-    dirs::cache_dir()
-        .unwrap_or(PathBuf::from("."))
-        .join("tiramisu")
-        .join("tiramisu.log")
-}
